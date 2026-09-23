@@ -569,8 +569,8 @@
    ตั้งค่า Supabase — แก้ 2 บรรทัดนี้ก่อนใช้งาน
    หา URL และ anon key ได้จาก Supabase Dashboard > Settings > API
    ================================================================= */
-const SUPABASE_URL =https://vlbysgrmnuhbubgzdmar.supabase.co;       // เช่น https://xxxxx.supabase.co
-const SUPABASE_ANON_KEY =sb_publishable_P1UOIzNROBbFHUSXFxST2w_wc1yF-3U;
+const SUPABASE_URL = 'https://vlbysgrmnuhbubgzdmar.supabase.co';       // เช่น https://xxxxx.supabase.co
+const SUPABASE_ANON_KEY = 'sb_publishable_P1UOIzNROBbFHUSXFxST2w_wc1yF-3U' ;
 
 /* ---------------- Config ---------------- */
 const STATUSES = [
@@ -632,7 +632,7 @@ function normUser(u) { return (u || '').trim().toLowerCase().replace(/\s+/g, '')
 async function boot() {
   populateStaticSelects();
 
-  if (!SUPABASE_URL || SUPABASE_URL.indexOf(https://vlbysgrmnuhbubgzdmar.supabase.co) !== -1) {
+  if (!SUPABASE_URL || SUPABASE_URL.indexOf('https://vlbysgrmnuhbubgzdmar.supabase.co') !== -1) {
     document.getElementById('authLoading').textContent = 'ยังไม่ได้ตั้งค่า Supabase URL/Key ในไฟล์นี้ — เปิดไฟล์ HTML แล้วแก้ 2 บรรทัดบนสุดของโค้ดส่วนสคริปต์';
     return;
   }
