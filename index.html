@@ -569,7 +569,7 @@
    ตั้งค่า Supabase — แก้ 2 บรรทัดนี้ก่อนใช้งาน
    หา URL และ anon key ได้จาก Supabase Dashboard > Settings > API
    ================================================================= */
-const SUPABASE_URL = 'https://vlbysgrmnuhbubgzdmar.supabase.co';       // เช่น https://xxxxx.supabase.co
+const SUPABASE_URL = 'https://vlbysgrmnuhbubgzdmar.supabaseClient.co';       // เช่น https://xxxxx.supabaseClient.co
 const SUPABASE_ANON_KEY = 'sb_publishable_P1UOIzNROBbFHUSXFxST2w_wc1yF-3U' ;
 
 /* ---------------- Config ---------------- */
@@ -587,7 +587,7 @@ const SESSION_KEY = 'nc_session_v1';
 const POLL_MS = 8000; // สำรองไว้เผื่อ Realtime ไม่ทำงาน จะดึงข้อมูลใหม่ทุก ๆ กี่มิลลิวินาที
 
 /* ---------------- State ---------------- */
-let supabase = null;
+let supabaseClient = null;
 let session = null;     // {username, role, displayName}
 let appUsers = [];
 let cases = [];
@@ -638,7 +638,7 @@ async function boot() {
   }
 
   try {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    supabaseClient = window.supabaseClient.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   } catch (e) {
     document.getElementById('authLoading').textContent = 'เชื่อมต่อ Supabase ไม่สำเร็จ: ' + e.message;
     return;
@@ -649,7 +649,7 @@ async function boot() {
 
   let usersRows;
   try {
-    const { data, error } = await supabase.from('app_users').select('*');
+    const { data, error } = await supabaseClient.from('app_users').select('*');
     if (error) throw error;
     usersRows = data;
   } catch (e) {
@@ -687,7 +687,7 @@ async function doSetup() {
   if (p1 !== p2) { errEl.textContent = 'รหัสผ่านไม่ตรงกัน'; errEl.classList.add('show'); return; }
   try {
     const passwordHash = await sha256Hex(p1);
-    const { error } = await supabase.from('app_users').insert({
+    const { error } = await supabaseClient.from('app_users').insert({
       username, display_name: displayName, role: 'admin', password_hash: passwordHash, created_at: Date.now(),
     });
     if (error) throw error;
@@ -708,7 +708,7 @@ async function doLogin() {
   const password = document.getElementById('li_password').value;
   if (!username || !password) { errEl.textContent = 'กรุณากรอกชื่อผู้ใช้งานและรหัสผ่าน'; errEl.classList.add('show'); return; }
   try {
-    const { data, error } = await supabase.from('app_users').select('*').eq('username', username).maybeSingle();
+    const { data, error } = await supabaseClient.from('app_users').select('*').eq('username', username).maybeSingle();
     if (error) throw error;
     if (!data) { errEl.textContent = 'ไม่พบชื่อผู้ใช้งานนี้'; errEl.classList.add('show'); return; }
     const hash = await sha256Hex(password);
@@ -758,7 +758,7 @@ function setConn(state, label) {
 /* ---------------- Data load + realtime ---------------- */
 async function reloadCases() {
   try {
-    const { data, error } = await supabase.from('cases').select('*').order('created_at', { ascending: true });
+    const { data, error } = await supabaseClient.from('cases').select('*').order('created_at', { ascending: true });
     if (error) throw error;
     cases = data.map(rowToCase);
     renderStats();
@@ -767,7 +767,7 @@ async function reloadCases() {
 }
 async function reloadCars() {
   try {
-    const { data, error } = await supabase.from('cars').select('*').order('code', { ascending: true });
+    const { data, error } = await supabaseClient.from('cars').select('*').order('code', { ascending: true });
     if (error) throw error;
     cars = data.map(rowToCar);
     renderCarList();
@@ -776,7 +776,7 @@ async function reloadCars() {
 }
 async function reloadUsers() {
   try {
-    const { data, error } = await supabase.from('app_users').select('*');
+    const { data, error } = await supabaseClient.from('app_users').select('*');
     if (error) throw error;
     appUsers = data.map(rowToUser);
     renderUserList();
@@ -787,15 +787,15 @@ async function reloadUsers() {
 
 function subscribeCases() {
   reloadCases();
-  supabase.channel('cases-rt').on('postgres_changes', { event: '*', schema: 'public', table: 'cases' }, () => reloadCases()).subscribe();
+  supabaseClient.channel('cases-rt').on('postgres_changes', { event: '*', schema: 'public', table: 'cases' }, () => reloadCases()).subscribe();
 }
 function subscribeCars() {
   reloadCars();
-  supabase.channel('cars-rt').on('postgres_changes', { event: '*', schema: 'public', table: 'cars' }, () => reloadCars()).subscribe();
+  supabaseClient.channel('cars-rt').on('postgres_changes', { event: '*', schema: 'public', table: 'cars' }, () => reloadCars()).subscribe();
 }
 function subscribeUsers() {
   reloadUsers();
-  supabase.channel('users-rt').on('postgres_changes', { event: '*', schema: 'public', table: 'app_users' }, () => reloadUsers()).subscribe();
+  supabaseClient.channel('users-rt').on('postgres_changes', { event: '*', schema: 'public', table: 'app_users' }, () => reloadUsers()).subscribe();
 }
 
 /* ---------------- Static UI population ---------------- */
@@ -1010,7 +1010,7 @@ async function addCarFromTab() {
   const model = modelEl.value.trim();
   if (!code || !model) { showToast('กรุณากรอกรหัสรถและรุ่นรถให้ครบ', true); return; }
   try {
-    const { error } = await supabase.from('cars').upsert({ code, model, sold: false }, { onConflict: 'code' });
+    const { error } = await supabaseClient.from('cars').upsert({ code, model, sold: false }, { onConflict: 'code' });
     if (error) throw error;
     codeEl.value = ''; modelEl.value = '';
     showToast('เพิ่มรหัสรถ ' + code + ' แล้ว');
@@ -1021,7 +1021,7 @@ async function addCarFromTab() {
 function askDeleteCar(code) {
   openConfirm('ลบรหัสรถนี้?', 'เคสเดิมที่เคยอ้างอิงรหัสนี้จะยังแสดงข้อมูลเดิมอยู่ แต่จะไม่สามารถเลือกรหัสนี้ในเคสใหม่ได้อีก', async () => {
     try {
-      const { error } = await supabase.from('cars').delete().eq('code', code);
+      const { error } = await supabaseClient.from('cars').delete().eq('code', code);
       if (error) throw error;
       showToast('ลบรหัสรถแล้ว');
       reloadCars();
@@ -1056,11 +1056,11 @@ async function addUser() {
   const role = document.getElementById('nu_role').value;
   if (!username || !displayName || !password) { showToast('กรุณากรอกข้อมูลให้ครบ', true); return; }
   try {
-    const { data: existing, error: selErr } = await supabase.from('app_users').select('username').eq('username', username).maybeSingle();
+    const { data: existing, error: selErr } = await supabaseClient.from('app_users').select('username').eq('username', username).maybeSingle();
     if (selErr) throw selErr;
     if (existing) { showToast('มีชื่อผู้ใช้งานนี้อยู่แล้ว', true); return; }
     const passwordHash = await sha256Hex(password);
-    const { error } = await supabase.from('app_users').insert({ username, display_name: displayName, role, password_hash: passwordHash, created_at: Date.now() });
+    const { error } = await supabaseClient.from('app_users').insert({ username, display_name: displayName, role, password_hash: passwordHash, created_at: Date.now() });
     if (error) throw error;
     document.getElementById('nu_username').value = '';
     document.getElementById('nu_displayName').value = '';
@@ -1075,7 +1075,7 @@ function askResetPassword(username) {
   if (!pw) return;
   sha256Hex(pw).then(async (hash) => {
     try {
-      const { error } = await supabase.from('app_users').update({ password_hash: hash }).eq('username', username);
+      const { error } = await supabaseClient.from('app_users').update({ password_hash: hash }).eq('username', username);
       if (error) throw error;
       showToast('ตั้งรหัสผ่านใหม่แล้ว');
     } catch (e) { showToast('ไม่สำเร็จ: ' + e.message, true); }
@@ -1085,7 +1085,7 @@ function askResetPassword(username) {
 function askDeleteUser(username) {
   openConfirm('ลบผู้ใช้งานนี้?', 'บัญชีนี้จะไม่สามารถเข้าสู่ระบบได้อีก แต่เคสเดิมที่เคยลงไว้จะยังอยู่ในระบบ', async () => {
     try {
-      const { error } = await supabase.from('app_users').delete().eq('username', username);
+      const { error } = await supabaseClient.from('app_users').delete().eq('username', username);
       if (error) throw error;
       showToast('ลบผู้ใช้งานแล้ว');
       reloadUsers();
@@ -1175,7 +1175,7 @@ async function saveCase() {
     const newModel = document.getElementById('f_newCarModel').value.trim();
     if (!newCode || !newModel) { showToast('กรุณากรอกรหัสรถใหม่และรุ่นรถให้ครบ', true); return; }
     try {
-      const { error } = await supabase.from('cars').upsert({ code: newCode, model: newModel, sold: false }, { onConflict: 'code' });
+      const { error } = await supabaseClient.from('cars').upsert({ code: newCode, model: newModel, sold: false }, { onConflict: 'code' });
       if (error) throw error;
     } catch (e) { showToast('เพิ่มรหัสรถใหม่ไม่สำเร็จ: ' + e.message, true); return; }
     carCode = newCode; carModel = newModel;
@@ -1221,20 +1221,20 @@ async function saveCase() {
   saveBtn.disabled = true;
   try {
     if (editingCaseId) {
-      const { error } = await supabase.from('cases').update(caseToRow(payload)).eq('id', editingCaseId);
+      const { error } = await supabaseClient.from('cases').update(caseToRow(payload)).eq('id', editingCaseId);
       if (error) throw error;
     } else {
-      const { error } = await supabase.from('cases').insert(caseToRow(payload));
+      const { error } = await supabaseClient.from('cases').insert(caseToRow(payload));
       if (error) throw error;
     }
 
     try {
       if (newStatus === SOLD_STATUS) {
-        await supabase.from('cars').update({ sold: true, sold_case_id: editingCaseId || null }).eq('code', carCode);
+        await supabaseClient.from('cars').update({ sold: true, sold_case_id: editingCaseId || null }).eq('code', carCode);
       } else if (prevStatus === SOLD_STATUS && prevCarCode) {
         const prevCar = cars.find(c => c.code === prevCarCode);
         if (prevCar && (!prevCar.soldCaseId || prevCar.soldCaseId === editingCaseId)) {
-          await supabase.from('cars').update({ sold: false, sold_case_id: null }).eq('code', prevCarCode);
+          await supabaseClient.from('cars').update({ sold: false, sold_case_id: null }).eq('code', prevCarCode);
         }
       }
     } catch (e) { /* non-fatal */ }
@@ -1253,7 +1253,7 @@ async function saveCase() {
 function askDeleteCase(caseId) {
   openConfirm('ลบเคสนี้?', 'ข้อมูลเคสนี้จะถูกลบออกจากระบบอย่างถาวร', async () => {
     try {
-      const { error } = await supabase.from('cases').delete().eq('id', caseId);
+      const { error } = await supabaseClient.from('cases').delete().eq('id', caseId);
       if (error) throw error;
       showToast('ลบเคสแล้ว');
       reloadCases();
