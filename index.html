@@ -1,0 +1,1297 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ระบบจัดการเคสลูกค้า</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+
+    --ink: #16202B;
+    --ink-soft: #4B5B6B;
+    --ink-faint: #7E8C99;
+    --paper: #EFF2F4;
+    --surface: #FFFFFF;
+    --steel: #2D4A63;
+    --steel-deep: #1D3145;
+    --steel-light: #4D7291;
+    --amber: #C97F00;
+    --amber-bg: #FBF0DC;
+    --line: #DCE2E6;
+    --line-soft: #EAEEF1;
+    --danger: #B42318;
+    --danger-bg: #FBE9E7;
+    --success: #157F3C;
+    --success-bg: #E4F5E9;
+
+    --font-th: 'Noto Sans Thai', sans-serif;
+    --font-code: 'Space Grotesk', sans-serif;
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: var(--font-th);
+    background: var(--paper);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: #E7ECEF; --ink-soft: #AEB9C2; --ink-faint: #7D8A96;
+      --paper: #121A22; --surface: #1A2530;
+      --steel: #4D7291; --steel-deep: #16222E; --steel-light: #6C93B4;
+      --amber: #E3A23D; --amber-bg: #3A2C10;
+      --line: #2A3742; --line-soft: #212C36;
+      --danger: #F2938A; --danger-bg: #3A1917;
+      --success: #6FCB90; --success-bg: #14301F;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: #E7ECEF; --ink-soft: #AEB9C2; --ink-faint: #7D8A96;
+    --paper: #121A22; --surface: #1A2530;
+    --steel: #4D7291; --steel-deep: #16222E; --steel-light: #6C93B4;
+    --amber: #E3A23D; --amber-bg: #3A2C10;
+    --line: #2A3742; --line-soft: #212C36;
+    --danger: #F2938A; --danger-bg: #3A1917;
+    --success: #6FCB90; --success-bg: #14301F;
+  }
+
+  html, body { height: 100%; }
+  #app { min-height: 100%; display: flex; }
+  #app.hidden { display: none !important; }
+
+  /* ---------- Login ---------- */
+  .auth-screen {
+    min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px;
+  }
+  .auth-box { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 30px; max-width: 360px; width: 100%; }
+  .auth-mark { font-family: var(--font-code); font-size: 12.5px; letter-spacing: 0.04em; color: var(--amber); font-weight: 700; margin-bottom: 6px; }
+  .auth-box h2 { margin: 0 0 4px; font-size: 19px; }
+  .auth-box p.sub { margin: 0 0 20px; font-size: 13px; color: var(--ink-faint); }
+  .auth-box .field { margin-bottom: 14px; }
+  .auth-box .field label { display: block; font-size: 13px; font-weight: 600; color: var(--ink-soft); margin-bottom: 6px; }
+  .auth-box input[type=text], .auth-box input[type=password] {
+    width: 100%; padding: 10px 12px; border-radius: 7px; border: 1px solid var(--line);
+    background: var(--paper); color: var(--ink); font-family: var(--font-th); font-size: 14px;
+  }
+  .auth-err { background: var(--danger-bg); color: var(--danger); font-size: 12.5px; padding: 8px 10px; border-radius: 6px; margin-bottom: 12px; display: none; }
+  .auth-err.show { display: block; }
+  .auth-hint { font-size: 11.5px; color: var(--ink-faint); margin-top: 14px; line-height: 1.5; }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    width: 232px; flex-shrink: 0; background: var(--steel-deep); color: #EAF0F5;
+    display: flex; flex-direction: column;
+    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px) 0;
+  }
+  .sidebar-brand { padding: 22px 20px 18px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .sidebar-brand .mark { font-family: var(--font-code); font-size: 13px; letter-spacing: 0.04em; color: var(--amber); font-weight: 600; }
+  .sidebar-brand h1 { margin: 4px 0 0; font-size: 17px; font-weight: 700; line-height: 1.35; }
+  .sidebar-nav { padding: 14px 12px; flex: 1; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px;
+    border: none; background: transparent; color: #C6D2DC; font-family: var(--font-th);
+    font-size: 14.5px; font-weight: 500; text-align: left; border-radius: 7px; cursor: pointer; margin-bottom: 3px;
+  }
+  .nav-item:hover { background: rgba(255,255,255,0.06); color: #fff; }
+  .nav-item.active { background: var(--steel); color: #fff; }
+  .nav-item .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.55; flex-shrink: 0; }
+  .who-pill {
+    margin: 4px 12px 0; padding: 9px 10px; border-radius: 7px; font-size: 12.5px; color: #BFD0DD;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+  }
+  .who-pill .name { color: var(--amber); font-size: 13.5px; font-weight: 700; display: block; }
+  .who-pill .role { font-size: 11px; color: #9FB3C2; margin-top: 1px; display: block; }
+  .who-pill button {
+    border: none; background: transparent; color: #9FB3C2; font-size: 11.5px; text-decoration: underline;
+    cursor: pointer; font-family: var(--font-th); padding: 0; margin-top: 6px;
+  }
+  .sidebar-foot { padding: 14px 20px 18px; font-size: 12px; color: #7E93A5; border-top: 1px solid rgba(255,255,255,0.08); }
+  .conn-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; position: relative; top: -1px; }
+  .conn-dot.ok { background: #4ADE80; }
+  .conn-dot.bad { background: #F87171; }
+  .conn-dot.wait { background: #FACC15; }
+
+  /* ---------- Main ---------- */
+  .main { flex: 1; min-width: 0; padding: 0; }
+  .topbar { background: var(--surface); border-bottom: 1px solid var(--line); padding: 18px 28px 16px; position: sticky; top: 0; z-index: 5; }
+  .topbar-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .topbar h2 { margin: 0 0 3px; font-size: 20px; font-weight: 700; }
+  .topbar p.sub { margin: 0; font-size: 13px; color: var(--ink-faint); }
+  .btn {
+    font-family: var(--font-th); font-weight: 600; font-size: 14px; border-radius: 7px; padding: 9px 16px;
+    border: 1px solid transparent; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  }
+  .btn-primary { background: var(--steel); color: #fff; }
+  .btn-primary:hover { background: var(--steel-deep); }
+  .btn-amber { background: var(--amber); color: #2A1B00; }
+  .btn-amber:hover { filter: brightness(0.94); }
+  .btn-ghost { background: transparent; color: var(--ink-soft); border-color: var(--line); }
+  .btn-ghost:hover { background: var(--line-soft); }
+  .btn-danger-ghost { background: transparent; color: var(--danger); border-color: var(--danger-bg); }
+  .btn-danger-ghost:hover { background: var(--danger-bg); }
+  .btn-sm { padding: 6px 11px; font-size: 12.5px; }
+  .btn-block { width: 100%; justify-content: center; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .content { padding: 20px 28px 48px; max-width: 1280px; }
+
+  /* stat cards */
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(120px,1fr)); gap: 12px; margin-bottom: 20px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+  .stat-card .num { font-family: var(--font-code); font-size: 26px; font-weight: 600; color: var(--steel); }
+  .stat-card.amber .num { color: var(--amber); }
+  .stat-card.success .num { color: var(--success); }
+  .stat-card .lbl { font-size: 12.5px; color: var(--ink-faint); margin-top: 2px; }
+
+  /* filter bar */
+  .filterbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; align-items: center; }
+  .search-box { position: relative; flex: 1 1 220px; min-width: 180px; }
+  .search-box input {
+    width: 100%; padding: 9px 12px 9px 32px; border-radius: 7px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--ink); font-family: var(--font-th); font-size: 14px;
+  }
+  .search-box svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); opacity: 0.45; }
+  select.filter-select {
+    padding: 9px 30px 9px 12px; border-radius: 7px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--ink); font-family: var(--font-th); font-size: 13.5px;
+    appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%237E8C99'/></svg>");
+    background-repeat: no-repeat; background-position: right 11px center;
+  }
+
+  /* table */
+  .table-wrap { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 960px; font-size: 13.5px; }
+  thead th {
+    text-align: left; padding: 11px 14px; font-weight: 600; color: var(--ink-soft);
+    border-bottom: 1px solid var(--line); background: var(--line-soft); white-space: nowrap; font-size: 12.5px;
+  }
+  tbody td { padding: 11px 14px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--line-soft); cursor: pointer; }
+  .case-code { font-family: var(--font-code); font-weight: 700; font-size: 13px; color: var(--steel); }
+  .code-badge {
+    font-family: var(--font-code); font-weight: 600; font-size: 12.5px;
+    background: var(--line-soft); border: 1px solid var(--line); border-radius: 5px; padding: 2px 7px;
+    display: inline-block; letter-spacing: 0.01em;
+  }
+  .model-txt { color: var(--ink-soft); font-size: 12.5px; display: block; margin-top: 2px; }
+  .cust-name { font-weight: 600; }
+  .cust-sub { color: var(--ink-faint); font-size: 12px; margin-top: 1px; }
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 4px 9px; border-radius: 20px; white-space: nowrap; }
+  .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .sales-tag {
+    display: inline-block; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 12px;
+    background: var(--line-soft); border: 1px solid var(--line); color: var(--ink-soft);
+  }
+  .muted { color: var(--ink-faint); font-size: 12.5px; }
+  .row-actions { display: flex; gap: 6px; }
+  .icon-btn { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: var(--ink-soft); }
+  .icon-btn:hover { background: var(--line-soft); }
+  .icon-btn.danger:hover { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-bg); }
+
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--ink-faint); }
+  .empty-state .big { font-size: 15px; font-weight: 600; color: var(--ink-soft); margin-bottom: 4px; }
+
+  /* ---------- Drawer ---------- */
+  .overlay { position: fixed; inset: 0; background: rgba(10,15,20,0.45); z-index: 40; display: none; align-items: stretch; justify-content: flex-end; }
+  .overlay.open { display: flex; }
+  .drawer { width: min(480px, 100%); background: var(--surface); height: 100%; overflow-y: auto; padding: env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px) 0; box-shadow: -8px 0 30px rgba(0,0,0,0.18); }
+  .drawer-head { padding: 18px 24px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: var(--surface); z-index: 2; }
+  .drawer-head h3 { margin: 0; font-size: 17px; font-weight: 700; }
+  .drawer-close { border: none; background: transparent; cursor: pointer; color: var(--ink-faint); padding: 6px; }
+  .drawer-body { padding: 20px 24px 40px; }
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 13px; font-weight: 600; color: var(--ink-soft); margin-bottom: 6px; }
+  .field .hint { font-size: 11.5px; color: var(--ink-faint); margin-top: 4px; }
+  .field input[type=text], .field input[type=date], .field input[type=password], .field select, .field textarea {
+    width: 100%; padding: 9px 11px; border-radius: 7px; border: 1px solid var(--line);
+    background: var(--paper); color: var(--ink); font-family: var(--font-th); font-size: 14px;
+  }
+  .field input:disabled, .field select:disabled, .field textarea:disabled { opacity: 0.7; cursor: not-allowed; }
+  .field textarea { min-height: 84px; resize: vertical; font-family: var(--font-th); }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .status-opt { border: 1.5px solid var(--line); border-radius: 7px; padding: 8px 10px; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 7px; background: var(--surface); }
+  .status-opt .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .status-opt.selected { border-color: currentColor; background: var(--paper); }
+  .drawer-foot { display: flex; gap: 10px; padding: 16px 24px; border-top: 1px solid var(--line); position: sticky; bottom: 0; background: var(--surface); }
+  .new-car-box { border: 1px dashed var(--line); border-radius: 7px; padding: 12px; margin-top: 8px; background: var(--paper); }
+  .static-pill { display: inline-block; padding: 8px 12px; border-radius: 7px; background: var(--paper); border: 1px solid var(--line); font-size: 14px; font-weight: 600; }
+
+  /* toast */
+  .toast-wrap { position: fixed; bottom: 20px; right: 20px; z-index: 60; display: flex; flex-direction: column; gap: 8px; }
+  .toast { background: var(--ink); color: var(--paper); padding: 10px 16px; border-radius: 7px; font-size: 13.5px; box-shadow: 0 6px 20px rgba(0,0,0,0.2); max-width: 320px; }
+  .toast.err { background: var(--danger); color: #fff; }
+
+  /* confirm modal */
+  .confirm-overlay { position: fixed; inset: 0; background: rgba(10,15,20,0.45); z-index: 50; display: none; align-items: center; justify-content: center; padding: 20px; }
+  .confirm-overlay.open { display: flex; }
+  .confirm-box { background: var(--surface); border-radius: 10px; padding: 20px; max-width: 340px; width: 100%; }
+  .confirm-box h4 { margin: 0 0 8px; font-size: 15.5px; }
+  .confirm-box p { margin: 0 0 16px; font-size: 13.5px; color: var(--ink-soft); }
+  .confirm-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+  /* cars tab */
+  .car-list { display: grid; gap: 8px; margin-top: 16px; }
+  .car-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 7px; padding: 10px 14px; }
+  .car-row.sold { opacity: 0.65; }
+  .sold-tag { font-size: 11px; font-weight: 700; color: var(--success); background: var(--success-bg); padding: 2px 8px; border-radius: 12px; margin-left: 8px; }
+  .car-add-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-top: 14px; }
+  .car-add-form .field { margin-bottom: 0; min-width: 140px; flex: 1; }
+
+  /* users tab */
+  .user-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 7px; padding: 12px 14px; margin-bottom: 8px; }
+  .user-row .uname { font-weight: 700; font-size: 14px; }
+  .user-row .urole { font-size: 11.5px; color: var(--ink-faint); margin-top: 2px; }
+  .role-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+  .role-badge.admin { background: var(--amber-bg); color: #6B4A00; }
+  .role-badge.sales { background: var(--line-soft); color: var(--ink-soft); }
+  .user-add-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin: 14px 0 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+  .user-add-form .field { margin-bottom: 0; min-width: 140px; flex: 1; }
+
+  .hidden { display: none !important; }
+
+  @media (max-width: 820px) {
+    #app { flex-direction: column; }
+    .sidebar { width: 100%; flex-direction: row; align-items: center; padding: env(safe-area-inset-top,0px) 10px 0; }
+    .sidebar-brand { border-bottom: none; padding: 12px 8px; flex-shrink: 0; }
+    .sidebar-nav { display: flex; padding: 8px 4px; flex: 1; overflow-x: auto; }
+    .nav-item { white-space: nowrap; margin-bottom: 0; margin-right: 4px; }
+    .who-pill { display: none; }
+    .sidebar-foot { display: none; }
+    .content { padding: 16px 14px 40px; }
+    .topbar { padding: 14px 14px 12px; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .field-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- AUTH SCREEN -->
+<div class="auth-screen" id="authScreen">
+  <div class="auth-box">
+    <div class="auth-mark">N-CASE // เต็นท์รถมือสอง</div>
+
+    <!-- first-time admin setup -->
+    <div id="setupForm" class="hidden">
+      <h2>ตั้งค่าบัญชีแอดมินคนแรก</h2>
+      <p class="sub">ยังไม่มีบัญชีในระบบ กรอกข้อมูลเพื่อสร้างบัญชีแอดมิน (เจ้าของเต็นท์)</p>
+      <div class="auth-err" id="setupErr"></div>
+      <div class="field"><label>ชื่อผู้ใช้งาน (username)</label><input type="text" id="su_username" placeholder="admin"></div>
+      <div class="field"><label>ชื่อที่แสดง</label><input type="text" id="su_displayName" placeholder="เช่น เจ้าของเต็นท์"></div>
+      <div class="field"><label>รหัสผ่าน</label><input type="password" id="su_password"></div>
+      <div class="field"><label>ยืนยันรหัสผ่าน</label><input type="password" id="su_password2"></div>
+      <button class="btn btn-primary btn-block" onclick="doSetup()">สร้างบัญชีแอดมิน</button>
+    </div>
+
+    <!-- normal login -->
+    <div id="loginForm" class="hidden">
+      <h2>เข้าสู่ระบบ</h2>
+      <p class="sub">กรอกชื่อผู้ใช้งานและรหัสผ่านของคุณ</p>
+      <div class="auth-err" id="loginErr"></div>
+      <div class="field"><label>ชื่อผู้ใช้งาน</label><input type="text" id="li_username" placeholder="username"></div>
+      <div class="field"><label>รหัสผ่าน</label><input type="password" id="li_password"></div>
+      <button class="btn btn-primary btn-block" onclick="doLogin()">เข้าสู่ระบบ</button>
+      <div class="auth-hint">ยังไม่มีบัญชี? ติดต่อแอดมิน (เจ้าของเต็นท์) ให้สร้างบัญชีให้ในระบบ</div>
+    </div>
+
+    <div id="authLoading">กำลังเชื่อมต่อ…</div>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="mark">N-CASE // เต็นท์รถมือสอง</div>
+      <h1>ระบบจัดการเคสลูกค้า</h1>
+    </div>
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-tab="cases" onclick="switchTab('cases')"><span class="dot"></span>เคสลูกค้า</button>
+      <button class="nav-item" data-tab="cars" onclick="switchTab('cars')"><span class="dot"></span>จัดการรหัสรถ</button>
+      <button class="nav-item hidden" id="usersNavItem" data-tab="users" onclick="switchTab('users')"><span class="dot"></span>จัดการผู้ใช้งาน</button>
+    </nav>
+    <div class="who-pill">
+      <span class="name" id="whoName">—</span>
+      <span class="role" id="whoRole">—</span>
+      <button onclick="doLogout()">ออกจากระบบ</button>
+    </div>
+    <div class="sidebar-foot" id="connStatus"><span class="conn-dot wait"></span>กำลังเชื่อมต่อ…</div>
+  </aside>
+
+  <main class="main">
+
+    <!-- CASES TAB -->
+    <div id="tab-cases">
+      <div class="topbar">
+        <div class="topbar-row">
+          <div>
+            <h2 id="caseTitle">เคสของฉัน</h2>
+            <p class="sub" id="caseSub">เคสที่คุณดูแลอยู่ เพิ่ม แก้ไข และติดตามสถานะได้ที่นี่</p>
+          </div>
+          <button class="btn btn-amber" onclick="openCaseDrawer()">+ เพิ่มเคสใหม่</button>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="stats" id="statCards"></div>
+
+        <div class="filterbar">
+          <div class="search-box">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <input type="text" id="searchInput" placeholder="ค้นหารหัสเคส, ชื่อลูกค้า, เบอร์โทร, รหัสรถ…" oninput="renderTable()">
+          </div>
+          <select class="filter-select" id="statusFilter" onchange="renderTable()">
+            <option value="">สถานะทั้งหมด</option>
+          </select>
+          <select class="filter-select" id="channelFilter" onchange="renderTable()">
+            <option value="">ช่องทางทั้งหมด</option>
+          </select>
+          <select class="filter-select hidden" id="salesFilter" onchange="renderTable()">
+            <option value="">เซลล์ทั้งหมด</option>
+          </select>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>รหัสเคส</th>
+                <th>รหัสรถ / รุ่น</th>
+                <th>ลูกค้า</th>
+                <th>ช่องทาง</th>
+                <th>วันที่รับเคส</th>
+                <th>อัปเดตล่าสุด</th>
+                <th>เซลล์ดูแล</th>
+                <th>สถานะ</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="caseTableBody"></tbody>
+          </table>
+          <div class="empty-state hidden" id="emptyState">
+            <div class="big">ยังไม่มีเคสในมุมมองนี้</div>
+            <div id="emptyStateSub">กดปุ่ม "เพิ่มเคสใหม่" ด้านบนเพื่อเริ่มบันทึกเคสแรก</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CARS TAB -->
+    <div id="tab-cars" class="hidden">
+      <div class="topbar">
+        <div class="topbar-row">
+          <div>
+            <h2>จัดการรหัสรถยนต์</h2>
+            <p class="sub">กำหนดคู่รหัสรถ (Nxxx) กับรุ่นรถ — คันที่ขายแล้วจะไม่ขึ้นให้เลือกตอนเปิดเคสใหม่โดยอัตโนมัติ</p>
+          </div>
+        </div>
+      </div>
+      <div class="content" style="max-width:640px;">
+        <div class="car-add-form">
+          <div class="field">
+            <label>รหัสรถ (เช่น N101)</label>
+            <input type="text" id="newCarCode" placeholder="N101">
+          </div>
+          <div class="field">
+            <label>รุ่นรถ</label>
+            <input type="text" id="newCarModel" placeholder="Honda City 2019">
+          </div>
+          <button class="btn btn-primary" onclick="addCarFromTab()">+ เพิ่มรหัสรถ</button>
+        </div>
+        <div class="car-list" id="carList"></div>
+      </div>
+    </div>
+
+    <!-- USERS TAB (admin only) -->
+    <div id="tab-users" class="hidden">
+      <div class="topbar">
+        <div class="topbar-row">
+          <div>
+            <h2>จัดการผู้ใช้งาน</h2>
+            <p class="sub">สร้างบัญชีให้เซลล์แต่ละคนล็อกอินเข้ามาลงเคสของตัวเอง</p>
+          </div>
+        </div>
+      </div>
+      <div class="content" style="max-width:560px;">
+        <div class="user-add-form">
+          <div class="field">
+            <label>ชื่อผู้ใช้งาน</label>
+            <input type="text" id="nu_username" placeholder="เช่น bee">
+          </div>
+          <div class="field">
+            <label>ชื่อที่แสดง</label>
+            <input type="text" id="nu_displayName" placeholder="เช่น บี">
+          </div>
+          <div class="field">
+            <label>รหัสผ่าน</label>
+            <input type="text" id="nu_password" placeholder="ตั้งรหัสผ่านเริ่มต้น">
+          </div>
+          <div class="field" style="max-width:130px;">
+            <label>สิทธิ์</label>
+            <select id="nu_role">
+              <option value="sales">เซลล์</option>
+              <option value="admin">แอดมิน</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" onclick="addUser()">+ เพิ่มผู้ใช้งาน</button>
+        </div>
+        <div id="userList"></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Case drawer -->
+<div class="overlay" id="caseOverlay">
+  <div class="drawer">
+    <div class="drawer-head">
+      <h3 id="drawerTitle">เพิ่มเคสใหม่</h3>
+      <button class="drawer-close" onclick="closeCaseDrawer()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="drawer-body">
+
+      <div class="field" id="caseCodeField">
+        <label>รหัสเคส</label>
+        <input type="text" id="f_caseCode" placeholder="เช่น C101, C102">
+        <div class="hint">กำหนดรหัสเคสเอง — ระบบจะเตือนถ้าซ้ำกับเคสที่มีอยู่แล้ว</div>
+      </div>
+
+      <div class="field">
+        <label>รหัสรถยนต์</label>
+        <select id="f_carSelect" onchange="onCarSelectChange()">
+          <option value="">— เลือกรหัสรถ —</option>
+          <option value="__new__">+ เพิ่มรหัสรถใหม่</option>
+        </select>
+        <div class="new-car-box hidden" id="newCarBox">
+          <div class="field-row">
+            <div class="field" style="margin-bottom:0;">
+              <label>รหัสรถใหม่</label>
+              <input type="text" id="f_newCarCode" placeholder="N102">
+            </div>
+            <div class="field" style="margin-bottom:0;">
+              <label>รุ่นรถ</label>
+              <input type="text" id="f_newCarModel" placeholder="Toyota Yaris 2020">
+            </div>
+          </div>
+        </div>
+        <div class="hint" id="f_carModelDisplay"></div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>วันที่ได้รับเคส</label>
+          <input type="date" id="f_dateReceived">
+        </div>
+        <div class="field">
+          <label>คนดูแลเคส (เซลล์)</label>
+          <select id="f_salesSelect" class="hidden"></select>
+          <span class="static-pill" id="f_salesStatic"></span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>ชื่อลูกค้า</label>
+        <input type="text" id="f_customerName" placeholder="ชื่อ-นามสกุลลูกค้า">
+      </div>
+
+      <div class="field">
+        <label>เบอร์ติดต่อ / ไลน์ลูกค้า</label>
+        <input type="text" id="f_customerContact" placeholder="เบอร์โทร หรือ Line ID">
+      </div>
+
+      <div class="field">
+        <label>ช่องทาง</label>
+        <select id="f_channel" onchange="onChannelChange()"></select>
+      </div>
+
+      <div class="field hidden" id="f_brokerBox">
+        <label>รหัสนายหน้า</label>
+        <input type="text" id="f_brokerCode" placeholder="NC001">
+        <div class="hint">รูปแบบ: ขึ้นต้นด้วย NC ตามด้วยตัวเลข</div>
+      </div>
+
+      <div class="field hidden" id="f_otherChannelBox">
+        <label>รายละเอียดช่องทางอื่นๆ</label>
+        <input type="text" id="f_channelOther" placeholder="ระบุช่องทาง เช่น เพื่อนแนะนำ, ป้ายหน้าเต็นท์">
+      </div>
+
+      <div class="field">
+        <label>สถานะเคส</label>
+        <div class="status-grid" id="f_statusGrid"></div>
+      </div>
+
+      <div class="field">
+        <label>หมายเหตุเพิ่มเติม</label>
+        <textarea id="f_notes" placeholder="อัปเดตความคืบหน้าของเคสนี้…"></textarea>
+      </div>
+
+      <div class="field muted" id="lastUpdatedInfo" style="margin-bottom:0;"></div>
+    </div>
+    <div class="drawer-foot" id="drawerFoot">
+      <button class="btn btn-primary" style="flex:1;" onclick="saveCase()" id="saveCaseBtn">บันทึกเคส</button>
+      <button class="btn btn-ghost" onclick="closeCaseDrawer()">ยกเลิก</button>
+      <button class="btn btn-danger-ghost hidden" id="deleteCaseBtn" onclick="confirmDeleteCase()">ลบ</button>
+    </div>
+  </div>
+</div>
+
+<!-- confirm modal -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <h4 id="confirmTitle">ยืนยันการลบ</h4>
+    <p id="confirmMsg">คุณต้องการลบรายการนี้ใช่หรือไม่?</p>
+    <div class="confirm-actions">
+      <button class="btn btn-ghost" onclick="closeConfirm()">ยกเลิก</button>
+      <button class="btn btn-danger-ghost" id="confirmActionBtn" style="border-color:var(--danger); background:var(--danger); color:#fff;">ลบ</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+/* =================================================================
+   ตั้งค่า Supabase — แก้ 2 บรรทัดนี้ก่อนใช้งาน
+   หา URL และ anon key ได้จาก Supabase Dashboard > Settings > API
+   ================================================================= */
+const SUPABASE_URL = 'https://vlbysgrmnuhbubgzdmar.supabase.co';       // เช่น https://xxxxx.supabase.co
+const SUPABASE_ANON_KEY = 'sb_publishable_P1UOIzNROBbFHUSXFxST2w_wc1yF-3U';
+
+/* ---------------- Config ---------------- */
+const STATUSES = [
+  { key: 'ติดตาม',     color: '#2563EB' },
+  { key: 'ติดจอง',      color: '#C97F00' },
+  { key: 'ขายแล้ว',     color: '#157F3C' },
+  { key: 'คืนเงินจอง',   color: '#7C3AED' },
+  { key: 'ยึดเงินจอง',   color: '#B42318' },
+  { key: 'เลิกติดตาม',   color: '#6B7280' },
+];
+const CHANNELS = ['ตลาดรถ', 'TikTok', 'Facebook', 'One2Car', 'นายหน้า', 'อื่นๆ'];
+const SOLD_STATUS = 'ขายแล้ว';
+const SESSION_KEY = 'nc_session_v1';
+const POLL_MS = 8000; // สำรองไว้เผื่อ Realtime ไม่ทำงาน จะดึงข้อมูลใหม่ทุก ๆ กี่มิลลิวินาที
+
+/* ---------------- State ---------------- */
+let supabase = null;
+let session = null;     // {username, role, displayName}
+let appUsers = [];
+let cases = [];
+let cars = [];
+let editingCaseId = null;
+let pendingDeleteAction = null;
+
+function isAdmin() { return session && session.role === 'admin'; }
+
+/* ---------------- Row <-> App object mapping ---------------- */
+function rowToUser(r) { return { username: r.username, displayName: r.display_name, role: r.role, passwordHash: r.password_hash, createdAt: r.created_at }; }
+function rowToCar(r) { return { id: r.code, code: r.code, model: r.model, sold: !!r.sold, soldCaseId: r.sold_case_id }; }
+function rowToCase(r) {
+  return {
+    id: r.id, caseCode: r.case_code, carCode: r.car_code, carModel: r.car_model,
+    dateReceived: r.date_received, customerName: r.customer_name, customerContact: r.customer_contact,
+    channel: r.channel, brokerCode: r.broker_code, channelOther: r.channel_other,
+    salesPerson: r.sales_person, status: r.status, notes: r.notes,
+    lastUpdated: r.last_updated, createdAt: r.created_at,
+  };
+}
+function caseToRow(c) {
+  return {
+    case_code: c.caseCode, car_code: c.carCode, car_model: c.carModel,
+    date_received: c.dateReceived, customer_name: c.customerName, customer_contact: c.customerContact,
+    channel: c.channel, broker_code: c.brokerCode, channel_other: c.channelOther,
+    sales_person: c.salesPerson, status: c.status, notes: c.notes,
+    last_updated: c.lastUpdated, created_at: c.createdAt,
+  };
+}
+
+/* ---------------- Utilities ---------------- */
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+async function sha256Hex(str) {
+  const enc = new TextEncoder().encode(str);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function normUser(u) { return (u || '').trim().toLowerCase().replace(/\s+/g, ''); }
+
+/* ---------------- Boot ---------------- */
+async function boot() {
+  populateStaticSelects();
+
+  if (!SUPABASE_URL || SUPABASE_URL.indexOf('YOUR_SUPABASE_URL') !== -1) {
+    document.getElementById('authLoading').textContent = 'ยังไม่ได้ตั้งค่า Supabase URL/Key ในไฟล์นี้ — เปิดไฟล์ HTML แล้วแก้ 2 บรรทัดบนสุดของโค้ดส่วนสคริปต์';
+    return;
+  }
+
+  try {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  } catch (e) {
+    document.getElementById('authLoading').textContent = 'เชื่อมต่อ Supabase ไม่สำเร็จ: ' + e.message;
+    return;
+  }
+
+  let savedSession = null;
+  try { savedSession = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch (e) { savedSession = null; }
+
+  let usersRows;
+  try {
+    const { data, error } = await supabase.from('app_users').select('*');
+    if (error) throw error;
+    usersRows = data;
+  } catch (e) {
+    document.getElementById('authLoading').textContent = 'โหลดข้อมูลผู้ใช้งานไม่สำเร็จ: ' + e.message + ' (ตรวจสอบว่าสร้างตารางตาม SQL ที่ให้ไว้แล้ว)';
+    return;
+  }
+  appUsers = usersRows.map(rowToUser);
+  document.getElementById('authLoading').classList.add('hidden');
+
+  if (appUsers.length === 0) {
+    document.getElementById('setupForm').classList.remove('hidden');
+    return;
+  }
+
+  if (savedSession) {
+    const match = appUsers.find(u => u.username === savedSession.username);
+    if (match) {
+      session = { username: match.username, role: match.role, displayName: match.displayName };
+      enterApp();
+      return;
+    }
+  }
+
+  document.getElementById('loginForm').classList.remove('hidden');
+}
+
+async function doSetup() {
+  const errEl = document.getElementById('setupErr');
+  errEl.classList.remove('show');
+  const username = normUser(document.getElementById('su_username').value);
+  const displayName = document.getElementById('su_displayName').value.trim();
+  const p1 = document.getElementById('su_password').value;
+  const p2 = document.getElementById('su_password2').value;
+  if (!username || !displayName || !p1) { errEl.textContent = 'กรุณากรอกข้อมูลให้ครบ'; errEl.classList.add('show'); return; }
+  if (p1 !== p2) { errEl.textContent = 'รหัสผ่านไม่ตรงกัน'; errEl.classList.add('show'); return; }
+  try {
+    const passwordHash = await sha256Hex(p1);
+    const { error } = await supabase.from('app_users').insert({
+      username, display_name: displayName, role: 'admin', password_hash: passwordHash, created_at: Date.now(),
+    });
+    if (error) throw error;
+    session = { username, role: 'admin', displayName };
+    try { localStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch (e) {}
+    document.getElementById('setupForm').classList.add('hidden');
+    enterApp();
+  } catch (e) {
+    errEl.textContent = 'สร้างบัญชีไม่สำเร็จ: ' + e.message;
+    errEl.classList.add('show');
+  }
+}
+
+async function doLogin() {
+  const errEl = document.getElementById('loginErr');
+  errEl.classList.remove('show');
+  const username = normUser(document.getElementById('li_username').value);
+  const password = document.getElementById('li_password').value;
+  if (!username || !password) { errEl.textContent = 'กรุณากรอกชื่อผู้ใช้งานและรหัสผ่าน'; errEl.classList.add('show'); return; }
+  try {
+    const { data, error } = await supabase.from('app_users').select('*').eq('username', username).maybeSingle();
+    if (error) throw error;
+    if (!data) { errEl.textContent = 'ไม่พบชื่อผู้ใช้งานนี้'; errEl.classList.add('show'); return; }
+    const hash = await sha256Hex(password);
+    if (hash !== data.password_hash) { errEl.textContent = 'รหัสผ่านไม่ถูกต้อง'; errEl.classList.add('show'); return; }
+    session = { username: data.username, role: data.role, displayName: data.display_name };
+    try { localStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch (e) {}
+    document.getElementById('loginForm').classList.add('hidden');
+    enterApp();
+  } catch (e) {
+    errEl.textContent = 'เข้าสู่ระบบไม่สำเร็จ: ' + e.message;
+    errEl.classList.add('show');
+  }
+}
+
+function doLogout() {
+  try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+  location.reload();
+}
+
+function enterApp() {
+  document.getElementById('authScreen').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('whoName').textContent = session.displayName;
+  document.getElementById('whoRole').textContent = session.role === 'admin' ? 'แอดมิน (เห็นทุกเคส)' : 'เซลล์';
+  if (isAdmin()) {
+    document.getElementById('usersNavItem').classList.remove('hidden');
+    document.getElementById('salesFilter').classList.remove('hidden');
+    document.getElementById('caseTitle').textContent = 'เคสทั้งหมด (ทุกเซลล์)';
+    document.getElementById('caseSub').textContent = 'เห็นเคสของเซลล์ทุกคน';
+  } else {
+    document.getElementById('caseTitle').textContent = 'เคสของฉัน';
+    document.getElementById('caseSub').textContent = 'เคสที่คุณดูแลอยู่ เพิ่ม แก้ไข และติดตามสถานะได้ที่นี่';
+  }
+  setConn('ok', 'เชื่อมต่อแล้ว');
+  subscribeCases();
+  subscribeCars();
+  if (isAdmin()) subscribeUsers();
+  setInterval(() => { reloadCases(); reloadCars(); if (isAdmin()) reloadUsers(); }, POLL_MS);
+}
+
+function setConn(state, label) {
+  const el = document.getElementById('connStatus');
+  const dotClass = state === 'ok' ? 'ok' : state === 'bad' ? 'bad' : 'wait';
+  el.innerHTML = `<span class="conn-dot ${dotClass}"></span>${label}`;
+}
+
+/* ---------------- Data load + realtime ---------------- */
+async function reloadCases() {
+  try {
+    const { data, error } = await supabase.from('cases').select('*').order('created_at', { ascending: true });
+    if (error) throw error;
+    cases = data.map(rowToCase);
+    renderStats();
+    renderTable();
+  } catch (e) { showToast('โหลดข้อมูลเคสไม่สำเร็จ: ' + e.message, true); }
+}
+async function reloadCars() {
+  try {
+    const { data, error } = await supabase.from('cars').select('*').order('code', { ascending: true });
+    if (error) throw error;
+    cars = data.map(rowToCar);
+    renderCarList();
+    populateCarSelect();
+  } catch (e) { showToast('โหลดข้อมูลรหัสรถไม่สำเร็จ: ' + e.message, true); }
+}
+async function reloadUsers() {
+  try {
+    const { data, error } = await supabase.from('app_users').select('*');
+    if (error) throw error;
+    appUsers = data.map(rowToUser);
+    renderUserList();
+    populateSalesSelect();
+    renderTable();
+  } catch (e) { showToast('โหลดข้อมูลผู้ใช้งานไม่สำเร็จ: ' + e.message, true); }
+}
+
+function subscribeCases() {
+  reloadCases();
+  supabase.channel('cases-rt').on('postgres_changes', { event: '*', schema: 'public', table: 'cases' }, () => reloadCases()).subscribe();
+}
+function subscribeCars() {
+  reloadCars();
+  supabase.channel('cars-rt').on('postgres_changes', { event: '*', schema: 'public', table: 'cars' }, () => reloadCars()).subscribe();
+}
+function subscribeUsers() {
+  reloadUsers();
+  supabase.channel('users-rt').on('postgres_changes', { event: '*', schema: 'public', table: 'app_users' }, () => reloadUsers()).subscribe();
+}
+
+/* ---------------- Static UI population ---------------- */
+function populateStaticSelects() {
+  const statusFilter = document.getElementById('statusFilter');
+  STATUSES.forEach(s => { const o = document.createElement('option'); o.value = s.key; o.textContent = s.key; statusFilter.appendChild(o); });
+
+  const channelFilter = document.getElementById('channelFilter');
+  CHANNELS.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; channelFilter.appendChild(o); });
+
+  const fChannel = document.getElementById('f_channel');
+  CHANNELS.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; fChannel.appendChild(o); });
+
+  const grid = document.getElementById('f_statusGrid');
+  STATUSES.forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'status-opt';
+    div.dataset.key = s.key;
+    div.style.color = s.color;
+    div.innerHTML = `<span class="dot" style="background:${s.color}"></span>${s.key}`;
+    div.onclick = () => selectStatus(s.key);
+    grid.appendChild(div);
+  });
+}
+
+/* ---------------- Tabs ---------------- */
+function switchTab(tab) {
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.getElementById('tab-cases').classList.toggle('hidden', tab !== 'cases');
+  document.getElementById('tab-cars').classList.toggle('hidden', tab !== 'cars');
+  document.getElementById('tab-users').classList.toggle('hidden', tab !== 'users');
+}
+
+/* ---------------- Data scoping ---------------- */
+function currentList() {
+  return isAdmin() ? cases : cases.filter(c => c.salesPerson === session.username);
+}
+function salesDisplayName(username) {
+  const u = appUsers.find(x => x.username === username);
+  return u ? u.displayName : (username || '—');
+}
+
+/* ---------------- Stats ---------------- */
+function renderStats() {
+  const list = currentList();
+  const total = list.length;
+  const following = list.filter(c => c.status === 'ติดตาม' || c.status === 'ติดจอง').length;
+  const sold = list.filter(c => c.status === SOLD_STATUS).length;
+  const closed = list.filter(c => c.status === 'เลิกติดตาม' || c.status === 'คืนเงินจอง' || c.status === 'ยึดเงินจอง').length;
+  const wrap = document.getElementById('statCards');
+  wrap.innerHTML = `
+    <div class="stat-card"><div class="num">${total}</div><div class="lbl">เคสทั้งหมด</div></div>
+    <div class="stat-card amber"><div class="num">${following}</div><div class="lbl">กำลังติดตาม / ติดจอง</div></div>
+    <div class="stat-card success"><div class="num">${sold}</div><div class="lbl">ขายแล้ว</div></div>
+    <div class="stat-card"><div class="num">${closed}</div><div class="lbl">ปิดเคส / ยกเลิก</div></div>
+  `;
+}
+
+/* ---------------- Table ---------------- */
+function fmtDate(v) {
+  if (!v) return '—';
+  const d = typeof v === 'number' ? new Date(v) : new Date(v);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+function statusMeta(key) { return STATUSES.find(s => s.key === key) || { key: key || '—', color: '#6B7280' }; }
+
+function renderTable() {
+  if (!session) return;
+  const list = currentList();
+  const search = document.getElementById('searchInput').value.trim().toLowerCase();
+  const statusF = document.getElementById('statusFilter').value;
+  const channelF = document.getElementById('channelFilter').value;
+  const salesF = document.getElementById('salesFilter').value;
+
+  if (isAdmin()) {
+    const salesFilterEl = document.getElementById('salesFilter');
+    const prevVal = salesFilterEl.value;
+    const salesUsers = appUsers.filter(u => u.role === 'sales');
+    salesFilterEl.innerHTML = '<option value="">เซลล์ทั้งหมด</option>' + salesUsers.map(u => `<option value="${escapeHtml(u.username)}">${escapeHtml(u.displayName)}</option>`).join('');
+    salesFilterEl.value = salesUsers.some(u => u.username === prevVal) ? prevVal : '';
+  }
+
+  let rows = list.slice().sort((a, b) => (b.lastUpdated || 0) - (a.lastUpdated || 0));
+  rows = rows.filter(c => {
+    if (statusF && c.status !== statusF) return false;
+    if (channelF && c.channel !== channelF) return false;
+    if (isAdmin() && salesF && c.salesPerson !== salesF) return false;
+    if (search) {
+      const hay = [c.caseCode, c.customerName, c.customerContact, c.carCode, c.carModel, c.brokerCode].join(' ').toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+
+  const tbody = document.getElementById('caseTableBody');
+  const empty = document.getElementById('emptyState');
+  if (rows.length === 0) { tbody.innerHTML = ''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+
+  tbody.innerHTML = rows.map(c => {
+    const st = statusMeta(c.status);
+    const channelExtra = c.channel === 'นายหน้า' && c.brokerCode ? ' · ' + escapeHtml(c.brokerCode)
+      : c.channel === 'อื่นๆ' && c.channelOther ? ' · ' + escapeHtml(c.channelOther) : '';
+    return `
+      <tr onclick="openCaseDrawer('${c.id}')">
+        <td><div class="case-code">${escapeHtml(c.caseCode || '—')}</div></td>
+        <td>
+          <span class="code-badge">${escapeHtml(c.carCode || '—')}</span>
+          <span class="model-txt">${escapeHtml(c.carModel || '')}</span>
+        </td>
+        <td>
+          <div class="cust-name">${escapeHtml(c.customerName || '—')}</div>
+          <div class="cust-sub">${escapeHtml(c.customerContact || '')}</div>
+        </td>
+        <td class="muted">${escapeHtml(c.channel || '—')}${channelExtra}</td>
+        <td class="muted">${fmtDate(c.dateReceived)}</td>
+        <td class="muted">${fmtDate(c.lastUpdated)}</td>
+        <td><span class="sales-tag">${escapeHtml(salesDisplayName(c.salesPerson))}</span></td>
+        <td><span class="badge" style="background:${st.color}18; color:${st.color};"><span class="dot"></span>${escapeHtml(st.key)}</span></td>
+        <td onclick="event.stopPropagation()">
+          <div class="row-actions">
+            <button class="icon-btn" title="แก้ไข" onclick="openCaseDrawer('${c.id}')">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 20h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="icon-btn danger" title="ลบ" onclick="askDeleteCase('${c.id}')">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m2 0v14a1 1 0 01-1 1H7a1 1 0 01-1-1V6h12z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+}
+
+/* ---------------- Car select in drawer ---------------- */
+function populateCarSelect() {
+  const sel = document.getElementById('f_carSelect');
+  const current = sel.value;
+  const editingCar = editingCaseId ? (cases.find(x => x.id === editingCaseId) || {}).carCode : null;
+  const available = cars.filter(c => !c.sold || c.code === editingCar);
+  sel.innerHTML = '<option value="">— เลือกรหัสรถ —</option>' +
+    available.map(c => `<option value="${escapeHtml(c.code)}">${escapeHtml(c.code)} — ${escapeHtml(c.model)}${c.sold ? ' (ขายแล้ว)' : ''}</option>`).join('') +
+    '<option value="__new__">+ เพิ่มรหัสรถใหม่</option>';
+  if (current && (available.some(c => c.code === current) || current === '__new__')) sel.value = current;
+}
+
+function onCarSelectChange() {
+  const val = document.getElementById('f_carSelect').value;
+  const box = document.getElementById('newCarBox');
+  const display = document.getElementById('f_carModelDisplay');
+  if (val === '__new__') { box.classList.remove('hidden'); display.textContent = ''; }
+  else {
+    box.classList.add('hidden');
+    const found = cars.find(c => c.code === val);
+    display.textContent = found ? 'รุ่นรถ: ' + found.model : '';
+  }
+}
+
+function onChannelChange() {
+  const val = document.getElementById('f_channel').value;
+  document.getElementById('f_brokerBox').classList.toggle('hidden', val !== 'นายหน้า');
+  document.getElementById('f_otherChannelBox').classList.toggle('hidden', val !== 'อื่นๆ');
+}
+
+function selectStatus(key) {
+  document.querySelectorAll('.status-opt').forEach(el => el.classList.toggle('selected', el.dataset.key === key));
+}
+function getSelectedStatus() {
+  const el = document.querySelector('.status-opt.selected');
+  return el ? el.dataset.key : STATUSES[0].key;
+}
+
+/* ---------------- Sales field in drawer ---------------- */
+function populateSalesSelect() {
+  const sel = document.getElementById('f_salesSelect');
+  const salesUsers = appUsers.filter(u => u.role === 'sales');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— เลือกเซลล์ —</option>' + salesUsers.map(u => `<option value="${escapeHtml(u.username)}">${escapeHtml(u.displayName)}</option>`).join('');
+  if (current && salesUsers.some(u => u.username === current)) sel.value = current;
+}
+
+/* ---------------- Cars tab ---------------- */
+function renderCarList() {
+  const wrap = document.getElementById('carList');
+  if (cars.length === 0) {
+    wrap.innerHTML = '<div class="muted" style="padding:12px 2px;">ยังไม่มีรหัสรถในระบบ เพิ่มรายการแรกด้านบนได้เลย</div>';
+    return;
+  }
+  wrap.innerHTML = cars.map(c => `
+    <div class="car-row ${c.sold ? 'sold' : ''}">
+      <div>
+        <span class="code-badge">${escapeHtml(c.code)}</span>
+        <span style="margin-left:10px; font-size:13.5px;">${escapeHtml(c.model)}</span>
+        ${c.sold ? '<span class="sold-tag">ขายแล้ว</span>' : ''}
+      </div>
+      <button class="icon-btn danger" title="ลบ" onclick="askDeleteCar('${c.id}')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m2 0v14a1 1 0 01-1 1H7a1 1 0 01-1-1V6h12z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  `).join('');
+}
+
+async function addCarFromTab() {
+  const codeEl = document.getElementById('newCarCode');
+  const modelEl = document.getElementById('newCarModel');
+  const code = codeEl.value.trim().toUpperCase();
+  const model = modelEl.value.trim();
+  if (!code || !model) { showToast('กรุณากรอกรหัสรถและรุ่นรถให้ครบ', true); return; }
+  try {
+    const { error } = await supabase.from('cars').upsert({ code, model, sold: false }, { onConflict: 'code' });
+    if (error) throw error;
+    codeEl.value = ''; modelEl.value = '';
+    showToast('เพิ่มรหัสรถ ' + code + ' แล้ว');
+    reloadCars();
+  } catch (e) { showToast('บันทึกไม่สำเร็จ: ' + e.message, true); }
+}
+
+function askDeleteCar(code) {
+  openConfirm('ลบรหัสรถนี้?', 'เคสเดิมที่เคยอ้างอิงรหัสนี้จะยังแสดงข้อมูลเดิมอยู่ แต่จะไม่สามารถเลือกรหัสนี้ในเคสใหม่ได้อีก', async () => {
+    try {
+      const { error } = await supabase.from('cars').delete().eq('code', code);
+      if (error) throw error;
+      showToast('ลบรหัสรถแล้ว');
+      reloadCars();
+    } catch (e) { showToast('ลบไม่สำเร็จ: ' + e.message, true); }
+  });
+}
+
+/* ---------------- Users tab (admin) ---------------- */
+function renderUserList() {
+  const wrap = document.getElementById('userList');
+  if (appUsers.length === 0) { wrap.innerHTML = '<div class="muted">ยังไม่มีผู้ใช้งาน</div>'; return; }
+  wrap.innerHTML = appUsers.map(u => `
+    <div class="user-row">
+      <div>
+        <div class="uname">${escapeHtml(u.displayName)} <span class="role-badge ${u.role}">${u.role === 'admin' ? 'แอดมิน' : 'เซลล์'}</span></div>
+        <div class="urole">username: ${escapeHtml(u.username)}</div>
+      </div>
+      <div class="row-actions">
+        <button class="btn btn-ghost btn-sm" onclick="askResetPassword('${u.username}')">รีเซ็ตรหัสผ่าน</button>
+        ${u.username !== session.username ? `<button class="icon-btn danger" title="ลบผู้ใช้งาน" onclick="askDeleteUser('${u.username}')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m2 0v14a1 1 0 01-1 1H7a1 1 0 01-1-1V6h12z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+async function addUser() {
+  const username = normUser(document.getElementById('nu_username').value);
+  const displayName = document.getElementById('nu_displayName').value.trim();
+  const password = document.getElementById('nu_password').value;
+  const role = document.getElementById('nu_role').value;
+  if (!username || !displayName || !password) { showToast('กรุณากรอกข้อมูลให้ครบ', true); return; }
+  try {
+    const { data: existing, error: selErr } = await supabase.from('app_users').select('username').eq('username', username).maybeSingle();
+    if (selErr) throw selErr;
+    if (existing) { showToast('มีชื่อผู้ใช้งานนี้อยู่แล้ว', true); return; }
+    const passwordHash = await sha256Hex(password);
+    const { error } = await supabase.from('app_users').insert({ username, display_name: displayName, role, password_hash: passwordHash, created_at: Date.now() });
+    if (error) throw error;
+    document.getElementById('nu_username').value = '';
+    document.getElementById('nu_displayName').value = '';
+    document.getElementById('nu_password').value = '';
+    showToast('เพิ่มผู้ใช้งาน ' + displayName + ' แล้ว');
+    reloadUsers();
+  } catch (e) { showToast('เพิ่มผู้ใช้งานไม่สำเร็จ: ' + e.message, true); }
+}
+
+function askResetPassword(username) {
+  const pw = prompt('ตั้งรหัสผ่านใหม่สำหรับ ' + username + ':');
+  if (!pw) return;
+  sha256Hex(pw).then(async (hash) => {
+    try {
+      const { error } = await supabase.from('app_users').update({ password_hash: hash }).eq('username', username);
+      if (error) throw error;
+      showToast('ตั้งรหัสผ่านใหม่แล้ว');
+    } catch (e) { showToast('ไม่สำเร็จ: ' + e.message, true); }
+  });
+}
+
+function askDeleteUser(username) {
+  openConfirm('ลบผู้ใช้งานนี้?', 'บัญชีนี้จะไม่สามารถเข้าสู่ระบบได้อีก แต่เคสเดิมที่เคยลงไว้จะยังอยู่ในระบบ', async () => {
+    try {
+      const { error } = await supabase.from('app_users').delete().eq('username', username);
+      if (error) throw error;
+      showToast('ลบผู้ใช้งานแล้ว');
+      reloadUsers();
+    } catch (e) { showToast('ลบไม่สำเร็จ: ' + e.message, true); }
+  });
+}
+
+/* ---------------- Case drawer ---------------- */
+function openCaseDrawer(caseId) {
+  editingCaseId = caseId || null;
+  const overlay = document.getElementById('caseOverlay');
+  const title = document.getElementById('drawerTitle');
+  const deleteBtn = document.getElementById('deleteCaseBtn');
+  const lastUpdatedInfo = document.getElementById('lastUpdatedInfo');
+  const salesSelect = document.getElementById('f_salesSelect');
+  const salesStatic = document.getElementById('f_salesStatic');
+
+  document.getElementById('f_caseCode').value = '';
+  document.getElementById('f_carSelect').value = '';
+  document.getElementById('newCarBox').classList.add('hidden');
+  document.getElementById('f_newCarCode').value = '';
+  document.getElementById('f_newCarModel').value = '';
+  document.getElementById('f_carModelDisplay').textContent = '';
+  document.getElementById('f_dateReceived').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('f_customerName').value = '';
+  document.getElementById('f_customerContact').value = '';
+  document.getElementById('f_channel').value = CHANNELS[0];
+  document.getElementById('f_brokerBox').classList.add('hidden');
+  document.getElementById('f_brokerCode').value = '';
+  document.getElementById('f_otherChannelBox').classList.add('hidden');
+  document.getElementById('f_channelOther').value = '';
+  document.getElementById('f_notes').value = '';
+  selectStatus(STATUSES[0].key);
+  lastUpdatedInfo.textContent = '';
+  populateCarSelect();
+
+  if (isAdmin()) {
+    salesSelect.classList.remove('hidden');
+    salesStatic.classList.add('hidden');
+    populateSalesSelect();
+  } else {
+    salesSelect.classList.add('hidden');
+    salesStatic.classList.remove('hidden');
+    salesStatic.textContent = session.displayName;
+  }
+
+  const c = editingCaseId ? cases.find(x => x.id === editingCaseId) : null;
+
+  if (c) {
+    title.textContent = c.caseCode || 'แก้ไขเคส';
+    document.getElementById('f_caseCode').value = c.caseCode || '';
+    document.getElementById('f_carSelect').value = c.carCode || '';
+    document.getElementById('f_carModelDisplay').textContent = c.carModel ? 'รุ่นรถ: ' + c.carModel : '';
+    document.getElementById('f_dateReceived').value = c.dateReceived || '';
+    if (isAdmin()) salesSelect.value = c.salesPerson || '';
+    document.getElementById('f_customerName').value = c.customerName || '';
+    document.getElementById('f_customerContact').value = c.customerContact || '';
+    document.getElementById('f_channel').value = c.channel || CHANNELS[0];
+    document.getElementById('f_brokerBox').classList.toggle('hidden', c.channel !== 'นายหน้า');
+    document.getElementById('f_brokerCode').value = c.brokerCode || '';
+    document.getElementById('f_otherChannelBox').classList.toggle('hidden', c.channel !== 'อื่นๆ');
+    document.getElementById('f_channelOther').value = c.channelOther || '';
+    document.getElementById('f_notes').value = c.notes || '';
+    selectStatus(c.status || STATUSES[0].key);
+    lastUpdatedInfo.textContent = 'อัปเดตล่าสุด: ' + fmtDate(c.lastUpdated);
+    populateCarSelect();
+    deleteBtn.classList.remove('hidden');
+  } else {
+    title.textContent = 'เพิ่มเคสใหม่';
+    deleteBtn.classList.add('hidden');
+  }
+
+  overlay.classList.add('open');
+}
+
+function closeCaseDrawer() {
+  document.getElementById('caseOverlay').classList.remove('open');
+  editingCaseId = null;
+}
+
+async function saveCase() {
+  let carCode = document.getElementById('f_carSelect').value;
+  let carModel = '';
+
+  if (carCode === '__new__') {
+    const newCode = document.getElementById('f_newCarCode').value.trim().toUpperCase();
+    const newModel = document.getElementById('f_newCarModel').value.trim();
+    if (!newCode || !newModel) { showToast('กรุณากรอกรหัสรถใหม่และรุ่นรถให้ครบ', true); return; }
+    try {
+      const { error } = await supabase.from('cars').upsert({ code: newCode, model: newModel, sold: false }, { onConflict: 'code' });
+      if (error) throw error;
+    } catch (e) { showToast('เพิ่มรหัสรถใหม่ไม่สำเร็จ: ' + e.message, true); return; }
+    carCode = newCode; carModel = newModel;
+  } else if (carCode) {
+    const found = cars.find(c => c.code === carCode);
+    carModel = found ? found.model : '';
+  } else { showToast('กรุณาเลือกรหัสรถยนต์', true); return; }
+
+  const caseCode = document.getElementById('f_caseCode').value.trim().toUpperCase();
+  if (!caseCode) { showToast('กรุณากรอกรหัสเคส', true); return; }
+  const dupCase = cases.find(cs => cs.caseCode === caseCode && cs.id !== editingCaseId);
+  if (dupCase) { showToast('รหัสเคส ' + caseCode + ' ถูกใช้ไปแล้ว กรุณาใช้รหัสอื่น', true); return; }
+
+  const customerName = document.getElementById('f_customerName').value.trim();
+  if (!customerName) { showToast('กรุณากรอกชื่อลูกค้า', true); return; }
+
+  const salesPerson = isAdmin() ? document.getElementById('f_salesSelect').value : session.username;
+  if (!salesPerson) { showToast('กรุณาเลือกเซลล์ผู้ดูแลเคส', true); return; }
+
+  const channel = document.getElementById('f_channel').value;
+  const brokerCode = channel === 'นายหน้า' ? document.getElementById('f_brokerCode').value.trim().toUpperCase() : '';
+  const channelOther = channel === 'อื่นๆ' ? document.getElementById('f_channelOther').value.trim() : '';
+  const newStatus = getSelectedStatus();
+
+  const existing = editingCaseId ? cases.find(x => x.id === editingCaseId) : null;
+  const prevStatus = existing ? existing.status : null;
+  const prevCarCode = existing ? existing.carCode : null;
+
+  const payload = {
+    caseCode, carCode, carModel,
+    dateReceived: document.getElementById('f_dateReceived').value || '',
+    customerName,
+    customerContact: document.getElementById('f_customerContact').value.trim(),
+    channel, brokerCode, channelOther,
+    salesPerson,
+    status: newStatus,
+    notes: document.getElementById('f_notes').value.trim(),
+    lastUpdated: Date.now(),
+    createdAt: existing ? existing.createdAt : Date.now(),
+  };
+
+  const saveBtn = document.getElementById('saveCaseBtn');
+  saveBtn.disabled = true;
+  try {
+    if (editingCaseId) {
+      const { error } = await supabase.from('cases').update(caseToRow(payload)).eq('id', editingCaseId);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from('cases').insert(caseToRow(payload));
+      if (error) throw error;
+    }
+
+    try {
+      if (newStatus === SOLD_STATUS) {
+        await supabase.from('cars').update({ sold: true, sold_case_id: editingCaseId || null }).eq('code', carCode);
+      } else if (prevStatus === SOLD_STATUS && prevCarCode) {
+        const prevCar = cars.find(c => c.code === prevCarCode);
+        if (prevCar && (!prevCar.soldCaseId || prevCar.soldCaseId === editingCaseId)) {
+          await supabase.from('cars').update({ sold: false, sold_case_id: null }).eq('code', prevCarCode);
+        }
+      }
+    } catch (e) { /* non-fatal */ }
+
+    showToast(editingCaseId ? 'บันทึกการแก้ไขแล้ว' : 'เพิ่มเคสใหม่แล้ว: ' + payload.caseCode);
+    closeCaseDrawer();
+    reloadCases();
+    reloadCars();
+  } catch (e) {
+    showToast('บันทึกไม่สำเร็จ: ' + e.message, true);
+  } finally {
+    saveBtn.disabled = false;
+  }
+}
+
+function askDeleteCase(caseId) {
+  openConfirm('ลบเคสนี้?', 'ข้อมูลเคสนี้จะถูกลบออกจากระบบอย่างถาวร', async () => {
+    try {
+      const { error } = await supabase.from('cases').delete().eq('id', caseId);
+      if (error) throw error;
+      showToast('ลบเคสแล้ว');
+      reloadCases();
+    } catch (e) { showToast('ลบไม่สำเร็จ: ' + e.message, true); }
+  });
+}
+function confirmDeleteCase() {
+  if (editingCaseId) { closeCaseDrawer(); askDeleteCase(editingCaseId); }
+}
+
+/* ---------------- Confirm modal ---------------- */
+function openConfirm(title, msg, action) {
+  document.getElementById('confirmTitle').textContent = title;
+  document.getElementById('confirmMsg').textContent = msg;
+  pendingDeleteAction = action;
+  document.getElementById('confirmOverlay').classList.add('open');
+}
+function closeConfirm() {
+  document.getElementById('confirmOverlay').classList.remove('open');
+  pendingDeleteAction = null;
+}
+document.getElementById('confirmActionBtn').onclick = async () => {
+  const action = pendingDeleteAction;
+  closeConfirm();
+  if (action) await action();
+};
+
+/* ---------------- Toast ---------------- */
+function showToast(msg, isErr) {
+  const wrap = document.getElementById('toastWrap');
+  const t = document.createElement('div');
+  t.className = 'toast' + (isErr ? ' err' : '');
+  t.textContent = msg;
+  wrap.appendChild(t);
+  setTimeout(() => t.remove(), 3600);
+}
+
+boot();
+</script>
+</body>
+</html>
