@@ -569,8 +569,23 @@
    ตั้งค่า Supabase — แก้ 2 บรรทัดนี้ก่อนใช้งาน
    หา URL และ anon key ได้จาก Supabase Dashboard > Settings > API
    ================================================================= */
-const SUPABASE_URL = 'https://vlbysgrmnuhbubgzdmar.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_P1UOIzNROBbFHUSXFxST2w_wc1yF-3U';
+const CONFIGS = {
+  production: {
+    url: 'https://vlbysgrmnuhbubgzdmar.supabase.co',
+    key: 'sb_publishable_P1UOIzNROBbFHUSXFxST2w_wc1yF-3U'
+  },
+  test: {
+    url: 'https://qrtiqktriefakjlmhdvq.supabase.co',
+    key: 'sb_publishable_litTuAWVZX6C1d6pgsMjfg_woob_jQ7'
+  }
+};
+/* เว็บจริง = salescases.vercel.app เท่านั้น ที่อื่นทั้งหมด (preview/staging/เปิดในเครื่อง) ใช้ฐานข้อมูลทดสอบ
+   ถ้าผูกโดเมนของตัวเองในอนาคต ให้เพิ่มชื่อโดเมนในรายการนี้ */
+const PROD_HOSTS = ['salescases.vercel.app'];
+const IS_PROD = PROD_HOSTS.indexOf(location.hostname) !== -1;
+const SUPABASE_URL = (IS_PROD ? CONFIGS.production : CONFIGS.test).url;
+const SUPABASE_ANON_KEY = (IS_PROD ? CONFIGS.production : CONFIGS.test).key;
+if (!IS_PROD) document.title = '[ทดสอบ] ' + document.title;
 
 /* ---------------- Config ---------------- */
 const STATUSES = [
