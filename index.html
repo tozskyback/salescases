@@ -187,6 +187,13 @@
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%237E8C99'/></svg>");
     background-repeat: no-repeat; background-position: right 11px center;
   }
+  .filter-toggle {
+    display: inline-flex; align-items: center; gap: 7px; padding: 9px 12px; border-radius: 7px;
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft);
+    font-size: 13.5px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  }
+  .filter-toggle input { accent-color: var(--steel); width: 15px; height: 15px; cursor: pointer; }
+  .filter-toggle:has(input:checked) { border-color: var(--steel); color: var(--steel); background: var(--paper); }
 
   /* table */
   .table-wrap { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
@@ -396,6 +403,16 @@
           <select class="filter-select hidden" id="salesFilter" onchange="renderTable()">
             <option value="">เซลล์ทั้งหมด</option>
           </select>
+          <select class="filter-select" id="sortSelect" onchange="renderTable()">
+            <option value="caseCode">เรียง: รหัสเคส</option>
+            <option value="dateReceived">เรียง: วันที่รับเคส (ใหม่→เก่า)</option>
+            <option value="lastUpdated">เรียง: อัปเดตล่าสุด (ใหม่→เก่า)</option>
+            <option value="status">เรียง: สถานะ</option>
+          </select>
+          <label class="filter-toggle">
+            <input type="checkbox" id="followUpOnly" onchange="renderTable()">
+            <span>เฉพาะเคสที่ต้องติดตาม</span>
+          </label>
         </div>
 
         <div class="table-wrap">
@@ -1098,6 +1115,29 @@ function fmtDate(v) {
   return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 function statusMeta(key) { return STATUSES.find(s => s.key === key) || { key: key || '—', color: '#6B7280' }; }
+function caseCodeCompare(a, b) { return (a.caseCode || '').localeCompare(b.caseCode || '', undefined, { numeric: true, sensitivity: 'base' }); }
+function sortRows(rows, sortBy) {
+  const out = rows.slice();
+  if (sortBy === 'dateReceived') {
+    out.sort((a, b) => {
+      const da = a.dateReceived ? new Date(a.dateReceived).getTime() : -Infinity;
+      const db = b.dateReceived ? new Date(b.dateReceived).getTime() : -Infinity;
+      return db - da || caseCodeCompare(a, b);
+    });
+  } else if (sortBy === 'lastUpdated') {
+    out.sort((a, b) => (b.lastUpdated || 0) - (a.lastUpdated || 0) || caseCodeCompare(a, b));
+  } else if (sortBy === 'status') {
+    const order = STATUSES.map(s => s.key);
+    out.sort((a, b) => {
+      const ia = order.indexOf(a.status), ib = order.indexOf(b.status);
+      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib) || caseCodeCompare(a, b);
+    });
+  } else {
+    // default: เรียงตามรหัสเคส
+    out.sort(caseCodeCompare);
+  }
+  return out;
+}
 
 function renderTable() {
   if (!session) return;
@@ -1106,6 +1146,8 @@ function renderTable() {
   const statusF = document.getElementById('statusFilter').value;
   const channelF = document.getElementById('channelFilter').value;
   const salesF = document.getElementById('salesFilter').value;
+  const sortBy = document.getElementById('sortSelect').value || 'caseCode';
+  const followUpOnly = document.getElementById('followUpOnly').checked;
 
   if (isAdmin()) {
     const salesFilterEl = document.getElementById('salesFilter');
@@ -1115,8 +1157,8 @@ function renderTable() {
     salesFilterEl.value = salesUsers.some(u => u.username === prevVal) ? prevVal : '';
   }
 
-  let rows = list.slice().sort((a, b) => (b.lastUpdated || 0) - (a.lastUpdated || 0));
-  rows = rows.filter(c => {
+  let rows = list.filter(c => {
+    if (followUpOnly && !isOpenStatus(c.status)) return false;
     if (statusF && c.status !== statusF) return false;
     if (channelF && c.channel !== channelF) return false;
     if (isAdmin() && salesF && c.salesPerson !== salesF) return false;
@@ -1126,6 +1168,8 @@ function renderTable() {
     }
     return true;
   });
+
+  rows = sortRows(rows, sortBy);
 
   const tbody = document.getElementById('caseTableBody');
   const empty = document.getElementById('emptyState');
