@@ -273,6 +273,13 @@
   .car-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 7px; padding: 10px 14px; }
   .car-row.sold { opacity: 0.65; }
   .sold-tag { font-size: 11px; font-weight: 700; color: var(--success); background: var(--success-bg); padding: 2px 8px; border-radius: 12px; margin-left: 8px; }
+  .car-tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 12px; margin-left: 8px; }
+  .car-filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+  .car-filter-chip {
+    font-family: var(--font-th); font-size: 12.5px; font-weight: 600; padding: 7px 13px; border-radius: 20px;
+    border: 1.5px solid var(--line); background: var(--surface); color: var(--ink-soft); cursor: pointer;
+  }
+  .car-filter-chip.active { border-color: currentColor; background: var(--paper); }
   .car-add-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-top: 14px; }
   .car-add-form .field { margin-bottom: 0; min-width: 140px; flex: 1; }
 
@@ -462,6 +469,7 @@
           </div>
           <button class="btn btn-primary" onclick="addCarFromTab()">+ เพิ่มรหัสรถ</button>
         </div>
+        <div class="car-filter-bar" id="carFilterBar"></div>
         <div class="car-list" id="carList"></div>
       </div>
     </div>
@@ -582,6 +590,20 @@
         <input type="text" id="f_channelOther" placeholder="ระบุช่องทาง เช่น เพื่อนแนะนำ, ป้ายหน้าเต็นท์">
       </div>
 
+      <div class="field hidden" id="f_hasBrokerBox">
+        <label>มีนายหน้าไหม</label>
+        <select id="f_hasBroker" onchange="onHasBrokerChange()">
+          <option value="ไม่มี">ไม่มี</option>
+          <option value="มี">มี</option>
+        </select>
+      </div>
+
+      <div class="field hidden" id="f_subBrokerCodeBox">
+        <label>รหัสนายหน้า</label>
+        <input type="text" id="f_subBrokerCode" placeholder="NC001">
+        <div class="hint">รูปแบบ: ขึ้นต้นด้วย NC ตามด้วยตัวเลข</div>
+      </div>
+
       <div class="field">
         <label>สถานะเคส</label>
         <div class="status-grid" id="f_statusGrid"></div>
@@ -680,7 +702,7 @@ const STATUSES = [
   { key: 'ยึดเงินจอง',     color: '#B42318' },
   { key: 'เลิกติดตาม',     color: '#6B7280' },
 ];
-const CHANNELS = ['ตลาดรถ', 'TikTok', 'Facebook', 'One2Car', 'นายหน้า', 'อื่นๆ'];
+const CHANNELS = ['ตลาดรถ', 'TikTok', 'Facebook', 'Instagram', 'One2Car', 'นายหน้า', 'น้ำ', 'บี', 'Walk-in', 'อื่นๆ'];
 const SOLD_STATUS = 'ขายแล้ว';
 const SESSION_KEY = 'nc_session_v1';
 const POLL_MS = 8000; // สำรองไว้เผื่อ Realtime ไม่ทำงาน จะดึงข้อมูลใหม่ทุก ๆ กี่มิลลิวินาที
@@ -694,6 +716,7 @@ let cars = [];
 let editingCaseId = null;
 let pendingDeleteAction = null;
 let selectedMonth = currentMonthKey();
+let carFilter = 'all'; // 'all' | 'available' | 'sold' | 'returned'
 
 function isAdmin() { return session && session.role === 'admin'; }
 
@@ -888,6 +911,7 @@ async function reloadCases() {
     renderMonthBar();
     renderStats();
     renderTable();
+    renderCarList();
   } catch (e) { showToast('โหลดข้อมูลเคสไม่สำเร็จ: ' + e.message, true); }
 }
 async function reloadCars() {
@@ -1084,7 +1108,7 @@ function openYearSummary() {
   renderSummaryModal(list, 'สรุปเคส' + yearLabel(y));
 }
 function paletteColorFor(label, indexFallback) {
-  const known = { 'ตลาดรถ': CHART_PALETTE[0], 'TikTok': CHART_PALETTE[1], 'Facebook': CHART_PALETTE[2], 'One2Car': CHART_PALETTE[3], 'นายหน้า': CHART_PALETTE[4], 'อื่นๆ': CHART_PALETTE[5], 'ไม่ระบุ': '#9AA5AE' };
+  const known = { 'ตลาดรถ': CHART_PALETTE[0], 'TikTok': CHART_PALETTE[1], 'Facebook': CHART_PALETTE[2], 'Instagram': '#C13584', 'One2Car': CHART_PALETTE[3], 'นายหน้า': CHART_PALETTE[4], 'น้ำ': CHART_PALETTE[6], 'บี': CHART_PALETTE[7], 'Walk-in': '#4D7291', 'อื่นๆ': CHART_PALETTE[5], 'ไม่ระบุ': '#9AA5AE' };
   return known[label] || CHART_PALETTE[indexFallback % CHART_PALETTE.length];
 }
 function closeMonthSummary() {
@@ -1180,7 +1204,7 @@ function renderTable() {
 
   tbody.innerHTML = rows.map(c => {
     const st = statusMeta(c.status);
-    const channelExtra = c.channel === 'นายหน้า' && c.brokerCode ? ' · ' + escapeHtml(c.brokerCode)
+    const channelExtra = (c.channel === 'นายหน้า' || c.channel === 'น้ำ' || c.channel === 'บี') && c.brokerCode ? ' · ' + escapeHtml(c.brokerCode)
       : c.channel === 'อื่นๆ' && c.channelOther ? ' · ' + escapeHtml(c.channelOther) : '';
     return `
       <tr onclick="openCaseDrawer('${c.id}')">
@@ -1245,6 +1269,20 @@ function onChannelChange() {
   const val = document.getElementById('f_channel').value;
   document.getElementById('f_brokerBox').classList.toggle('hidden', val !== 'นายหน้า');
   document.getElementById('f_otherChannelBox').classList.toggle('hidden', val !== 'อื่นๆ');
+  const isSubBrokerChannel = (val === 'น้ำ' || val === 'บี');
+  document.getElementById('f_hasBrokerBox').classList.toggle('hidden', !isSubBrokerChannel);
+  if (!isSubBrokerChannel) {
+    document.getElementById('f_hasBroker').value = 'ไม่มี';
+    document.getElementById('f_subBrokerCode').value = '';
+    document.getElementById('f_subBrokerCodeBox').classList.add('hidden');
+  } else {
+    onHasBrokerChange();
+  }
+}
+function onHasBrokerChange() {
+  const has = document.getElementById('f_hasBroker').value === 'มี';
+  document.getElementById('f_subBrokerCodeBox').classList.toggle('hidden', !has);
+  if (!has) document.getElementById('f_subBrokerCode').value = '';
 }
 
 function selectStatus(key) {
@@ -1265,24 +1303,75 @@ function populateSalesSelect() {
 }
 
 /* ---------------- Cars tab ---------------- */
+// สถานะของรถ 3 แบบ อิงจาก cars.sold + เคสล่าสุดที่อ้างอิงรหัสรถนั้น
+// available = ยังไม่ขาย/ว่าง, sold = ขายแล้ว, returned = คืนรถ (ขายแล้วแต่ถูกคืนภายหลัง)
+function carDisplayStatus(car) {
+  if (car.sold) return 'sold';
+  const related = cases.filter(c => c.carCode === car.code);
+  if (!related.length) return 'available';
+  const latest = related.slice().sort((a, b) => (b.lastUpdated || 0) - (a.lastUpdated || 0))[0];
+  if (latest.status === 'คืนรถ') return 'returned';
+  return 'available';
+}
+const CAR_STATUS_META = {
+  available: { label: 'ยังไม่ขาย', tagLabel: null, color: null },
+  sold:      { label: 'ขายแล้ว',   tagLabel: 'ขายแล้ว', color: '#157F3C', bg: '#E4F5E9' },
+  returned:  { label: 'คืนรถ',     tagLabel: 'คืนรถ',   color: '#0E7490', bg: '#DFF3F7' },
+};
 function renderCarList() {
+  const filterBar = document.getElementById('carFilterBar');
   const wrap = document.getElementById('carList');
+  if (!filterBar || !wrap) return;
+
+  const statuses = cars.map(carDisplayStatus);
+  const counts = {
+    all: cars.length,
+    available: statuses.filter(s => s === 'available').length,
+    sold: statuses.filter(s => s === 'sold').length,
+    returned: statuses.filter(s => s === 'returned').length,
+  };
+  const chips = [
+    ['all', 'ทั้งหมด'],
+    ['available', 'รถยังไม่ขาย'],
+    ['sold', 'รถขายแล้ว'],
+    ['returned', 'รถคืน'],
+  ];
+  filterBar.innerHTML = chips.map(([key, label]) => `
+    <button class="car-filter-chip ${carFilter === key ? 'active' : ''}" onclick="setCarFilter('${key}')">${label} (${counts[key]})</button>
+  `).join('');
+
   if (cars.length === 0) {
     wrap.innerHTML = '<div class="muted" style="padding:12px 2px;">ยังไม่มีรหัสรถในระบบ เพิ่มรายการแรกด้านบนได้เลย</div>';
     return;
   }
-  wrap.innerHTML = cars.map(c => `
-    <div class="car-row ${c.sold ? 'sold' : ''}">
+
+  const filtered = cars.filter(c => carFilter === 'all' || carDisplayStatus(c) === carFilter);
+  if (filtered.length === 0) {
+    wrap.innerHTML = '<div class="muted" style="padding:12px 2px;">ไม่มีรถในหมวดนี้</div>';
+    return;
+  }
+
+  wrap.innerHTML = filtered.map(c => {
+    const st = carDisplayStatus(c);
+    const meta = CAR_STATUS_META[st];
+    const tag = meta.tagLabel ? `<span class="car-tag" style="color:${meta.color}; background:${meta.bg};">${meta.tagLabel}</span>` : '';
+    return `
+    <div class="car-row ${st === 'sold' ? 'sold' : ''}">
       <div>
         <span class="code-badge">${escapeHtml(c.code)}</span>
         <span style="margin-left:10px; font-size:13.5px;">${escapeHtml(c.model)}</span>
-        ${c.sold ? '<span class="sold-tag">ขายแล้ว</span>' : ''}
+        ${tag}
       </div>
       <button class="icon-btn danger" title="ลบ" onclick="askDeleteCar('${c.id}')">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m2 0v14a1 1 0 01-1 1H7a1 1 0 01-1-1V6h12z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
     </div>
-  `).join('');
+  `;
+  }).join('');
+}
+function setCarFilter(key) {
+  carFilter = key;
+  renderCarList();
 }
 
 async function addCarFromTab() {
@@ -1399,6 +1488,10 @@ function openCaseDrawer(caseId) {
   document.getElementById('f_brokerCode').value = '';
   document.getElementById('f_otherChannelBox').classList.add('hidden');
   document.getElementById('f_channelOther').value = '';
+  document.getElementById('f_hasBrokerBox').classList.add('hidden');
+  document.getElementById('f_hasBroker').value = 'ไม่มี';
+  document.getElementById('f_subBrokerCodeBox').classList.add('hidden');
+  document.getElementById('f_subBrokerCode').value = '';
   document.getElementById('f_notes').value = '';
   selectStatus(STATUSES[0].key);
   lastUpdatedInfo.textContent = '';
@@ -1430,6 +1523,11 @@ function openCaseDrawer(caseId) {
     document.getElementById('f_brokerCode').value = c.brokerCode || '';
     document.getElementById('f_otherChannelBox').classList.toggle('hidden', c.channel !== 'อื่นๆ');
     document.getElementById('f_channelOther').value = c.channelOther || '';
+    const isSubBrokerChannel = (c.channel === 'น้ำ' || c.channel === 'บี');
+    document.getElementById('f_hasBrokerBox').classList.toggle('hidden', !isSubBrokerChannel);
+    document.getElementById('f_hasBroker').value = (isSubBrokerChannel && c.brokerCode) ? 'มี' : 'ไม่มี';
+    document.getElementById('f_subBrokerCodeBox').classList.toggle('hidden', !(isSubBrokerChannel && c.brokerCode));
+    document.getElementById('f_subBrokerCode').value = isSubBrokerChannel ? (c.brokerCode || '') : '';
     document.getElementById('f_notes').value = c.notes || '';
     selectStatus(c.status || STATUSES[0].key);
     lastUpdatedInfo.textContent = 'อัปเดตล่าสุด: ' + fmtDate(c.lastUpdated);
@@ -1478,7 +1576,12 @@ async function saveCase() {
   if (!salesPerson) { showToast('กรุณาเลือกเซลล์ผู้ดูแลเคส', true); return; }
 
   const channel = document.getElementById('f_channel').value;
-  const brokerCode = channel === 'นายหน้า' ? document.getElementById('f_brokerCode').value.trim().toUpperCase() : '';
+  const isSubBrokerChannel = (channel === 'น้ำ' || channel === 'บี');
+  const brokerCode = channel === 'นายหน้า'
+    ? document.getElementById('f_brokerCode').value.trim().toUpperCase()
+    : (isSubBrokerChannel && document.getElementById('f_hasBroker').value === 'มี')
+      ? document.getElementById('f_subBrokerCode').value.trim().toUpperCase()
+      : '';
   const channelOther = channel === 'อื่นๆ' ? document.getElementById('f_channelOther').value.trim() : '';
   const newStatus = getSelectedStatus();
 
