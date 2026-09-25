@@ -165,7 +165,12 @@
   .summary-heading { font-size: 12.5px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 6px; }
   .summary-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line-soft); font-size: 13.5px; }
   .summary-row:last-child { border-bottom: none; }
+  .summary-row span:first-child { display: flex; align-items: center; gap: 7px; }
   .summary-num { font-family: var(--font-code); font-weight: 700; color: var(--ink); }
+  .pie-wrap { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .pie { width: 108px; height: 108px; min-width: 108px; border-radius: 50%; background: var(--line-soft); box-shadow: inset 0 0 0 1px var(--line); }
+  .pie-legend { flex: 1; min-width: 140px; }
+  .legend-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
 
   /* filter bar */
   .filterbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; align-items: center; }
@@ -592,7 +597,7 @@
 
 <!-- monthly summary modal -->
 <div class="overlay" id="summaryOverlay" style="justify-content:center; align-items:center;">
-  <div class="drawer" style="width:min(420px,92%); height:auto; max-height:88vh; border-radius:12px;">
+  <div class="drawer" style="width:min(480px,92%); height:auto; max-height:88vh; border-radius:12px;">
     <div class="drawer-head">
       <h3 id="summaryTitle">สรุปเคสเดือนนี้</h3>
       <button class="drawer-close" onclick="closeMonthSummary()">
@@ -968,10 +973,32 @@ function goToCurrentMonth() {
 }
 
 /* ---------------- Monthly summary ---------------- */
+const CHART_PALETTE = ['#2D4A63', '#C97F00', '#157F3C', '#B42318', '#7C3AED', '#0E7490', '#BE185D', '#65A30D'];
+function pieChartHtml(entries) {
+  // entries: [[label, count, color], ...] — already filtered to count > 0
+  const total = entries.reduce((sum, e) => sum + e[1], 0);
+  if (!total) return '<div class="muted" style="padding:6px 0;">ไม่มีข้อมูล</div>';
+  let acc = 0;
+  const stops = entries.map(([, count, color]) => {
+    const start = (acc / total) * 100;
+    acc += count;
+    const end = (acc / total) * 100;
+    return `${color} ${start}% ${end}%`;
+  }).join(', ');
+  const legend = entries.map(([label, count, color]) => `
+    <div class="summary-row"><span><span class="legend-dot" style="background:${color}"></span>${escapeHtml(label)}</span><span class="summary-num">${count} (${Math.round(count / total * 100)}%)</span></div>
+  `).join('');
+  return `
+    <div class="pie-wrap">
+      <div class="pie" style="background: conic-gradient(${stops});"></div>
+      <div class="pie-legend">${legend}</div>
+    </div>
+  `;
+}
+
 function openMonthSummary() {
   const list = monthList();
   const byStatus = {};
-  STATUSES.forEach(s => byStatus[s.key] = 0);
   const byChannel = {};
   const bySales = {};
   list.forEach(c => {
@@ -983,28 +1010,42 @@ function openMonthSummary() {
       bySales[s] = (bySales[s] || 0) + 1;
     }
   });
-  const rowsHtml = (obj) => Object.keys(obj).length
-    ? Object.entries(obj).sort((a, b) => b[1] - a[1]).map(([k, v]) => `
+
+  const statusEntries = STATUSES
+    .map(s => [s.key, byStatus[s.key] || 0, s.color])
+    .filter(e => e[1] > 0);
+
+  const channelEntries = Object.entries(byChannel)
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, count], i) => [label, count, paletteColorFor(label, i)]);
+
+  const salesRowsHtml = Object.keys(bySales).length
+    ? Object.entries(bySales).sort((a, b) => b[1] - a[1]).map(([k, v]) => `
         <div class="summary-row"><span>${escapeHtml(k)}</span><span class="summary-num">${v}</span></div>
       `).join('')
     : '<div class="muted" style="padding:6px 0;">ไม่มีข้อมูล</div>';
 
   document.getElementById('summaryTitle').textContent = 'สรุปเคสเดือน ' + monthKeyLabel(selectedMonth);
   document.getElementById('summaryTotal').textContent = list.length + ' เคส';
-  document.getElementById('summaryByStatus').innerHTML = rowsHtml(byStatus);
-  document.getElementById('summaryByChannel').innerHTML = rowsHtml(byChannel);
+  document.getElementById('summaryByStatus').innerHTML = pieChartHtml(statusEntries);
+  document.getElementById('summaryByChannel').innerHTML = pieChartHtml(channelEntries);
   const salesBlock = document.getElementById('summaryBySalesBlock');
   if (isAdmin()) {
     salesBlock.classList.remove('hidden');
-    document.getElementById('summaryBySales').innerHTML = rowsHtml(bySales);
+    document.getElementById('summaryBySales').innerHTML = salesRowsHtml;
   } else {
     salesBlock.classList.add('hidden');
   }
   document.getElementById('summaryOverlay').classList.add('open');
 }
+function paletteColorFor(label, indexFallback) {
+  const known = { 'ตลาดรถ': CHART_PALETTE[0], 'TikTok': CHART_PALETTE[1], 'Facebook': CHART_PALETTE[2], 'One2Car': CHART_PALETTE[3], 'นายหน้า': CHART_PALETTE[4], 'อื่นๆ': CHART_PALETTE[5], 'ไม่ระบุ': '#9AA5AE' };
+  return known[label] || CHART_PALETTE[indexFallback % CHART_PALETTE.length];
+}
 function closeMonthSummary() {
   document.getElementById('summaryOverlay').classList.remove('open');
 }
+
 
 /* ---------------- Stats ---------------- */
 function renderStats() {
