@@ -376,6 +376,8 @@
           <button class="btn btn-ghost btn-sm hidden" id="backToCurrentBtn" onclick="goToCurrentMonth()">กลับเดือนปัจจุบัน</button>
           <div class="month-bar-spacer"></div>
           <button class="btn btn-ghost btn-sm" onclick="openMonthSummary()">สรุปเคสเดือนนี้</button>
+          <button class="btn btn-ghost btn-sm" onclick="openQuarterSummary()">สรุปรายไตรมาส</button>
+          <button class="btn btn-ghost btn-sm" onclick="openYearSummary()">สรุปรายปี</button>
         </div>
 
         <div class="stats" id="statCards"></div>
@@ -996,8 +998,18 @@ function pieChartHtml(entries) {
   `;
 }
 
-function openMonthSummary() {
-  const list = monthList();
+function quarterOfMonthNum(m) { return Math.floor((m - 1) / 3) + 1; }
+function quarterKeyOf(monthKey) {
+  const [y, m] = monthKey.split('-').map(Number);
+  return y + '-Q' + quarterOfMonthNum(m);
+}
+function quarterLabel(qKey) {
+  const [y, q] = qKey.split('-Q');
+  return 'ไตรมาส ' + q + '/' + (Number(y) + 543);
+}
+function yearLabel(y) { return 'ปี ' + (Number(y) + 543); }
+
+function renderSummaryModal(list, title) {
   const byStatus = {};
   const byChannel = {};
   const bySales = {};
@@ -1025,7 +1037,7 @@ function openMonthSummary() {
       `).join('')
     : '<div class="muted" style="padding:6px 0;">ไม่มีข้อมูล</div>';
 
-  document.getElementById('summaryTitle').textContent = 'สรุปเคสเดือน ' + monthKeyLabel(selectedMonth);
+  document.getElementById('summaryTitle').textContent = title;
   document.getElementById('summaryTotal').textContent = list.length + ' เคส';
   document.getElementById('summaryByStatus').innerHTML = pieChartHtml(statusEntries);
   document.getElementById('summaryByChannel').innerHTML = pieChartHtml(channelEntries);
@@ -1038,6 +1050,20 @@ function openMonthSummary() {
   }
   document.getElementById('summaryOverlay').classList.add('open');
 }
+
+function openMonthSummary() {
+  renderSummaryModal(monthList(), 'สรุปเคสเดือน ' + monthKeyLabel(selectedMonth));
+}
+function openQuarterSummary() {
+  const qKey = quarterKeyOf(selectedMonth);
+  const list = currentList().filter(c => quarterKeyOf(caseMonthKeyOf(c)) === qKey);
+  renderSummaryModal(list, 'สรุปเคส' + quarterLabel(qKey));
+}
+function openYearSummary() {
+  const y = selectedMonth.split('-')[0];
+  const list = currentList().filter(c => caseMonthKeyOf(c).split('-')[0] === y);
+  renderSummaryModal(list, 'สรุปเคส' + yearLabel(y));
+}
 function paletteColorFor(label, indexFallback) {
   const known = { 'ตลาดรถ': CHART_PALETTE[0], 'TikTok': CHART_PALETTE[1], 'Facebook': CHART_PALETTE[2], 'One2Car': CHART_PALETTE[3], 'นายหน้า': CHART_PALETTE[4], 'อื่นๆ': CHART_PALETTE[5], 'ไม่ระบุ': '#9AA5AE' };
   return known[label] || CHART_PALETTE[indexFallback % CHART_PALETTE.length];
@@ -1045,6 +1071,7 @@ function paletteColorFor(label, indexFallback) {
 function closeMonthSummary() {
   document.getElementById('summaryOverlay').classList.remove('open');
 }
+
 
 
 /* ---------------- Stats ---------------- */
