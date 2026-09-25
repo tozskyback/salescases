@@ -671,12 +671,14 @@ if (!IS_PROD) document.title = '[ทดสอบ] ' + document.title;
 
 /* ---------------- Config ---------------- */
 const STATUSES = [
-  { key: 'ติดตาม',     color: '#2563EB' },
-  { key: 'ติดจอง',      color: '#C97F00' },
-  { key: 'ขายแล้ว',     color: '#157F3C' },
-  { key: 'คืนเงินจอง',   color: '#7C3AED' },
-  { key: 'ยึดเงินจอง',   color: '#B42318' },
-  { key: 'เลิกติดตาม',   color: '#6B7280' },
+  { key: 'ติดตาม',       color: '#2563EB' },
+  { key: 'ติดจอง',        color: '#C97F00' },
+  { key: 'ขายแล้ว',       color: '#157F3C' },
+  { key: 'ยกเลิกการขาย',  color: '#DC6803' },
+  { key: 'คืนรถ',         color: '#0E7490' },
+  { key: 'คืนเงินจอง',     color: '#7C3AED' },
+  { key: 'ยึดเงินจอง',     color: '#B42318' },
+  { key: 'เลิกติดตาม',     color: '#6B7280' },
 ];
 const CHANNELS = ['ตลาดรถ', 'TikTok', 'Facebook', 'One2Car', 'นายหน้า', 'อื่นๆ'];
 const SOLD_STATUS = 'ขายแล้ว';
@@ -1097,7 +1099,7 @@ function renderStats() {
   const total = list.length;
   const following = list.filter(c => c.status === 'ติดตาม' || c.status === 'ติดจอง').length;
   const sold = list.filter(c => c.status === SOLD_STATUS).length;
-  const closed = list.filter(c => c.status === 'เลิกติดตาม' || c.status === 'คืนเงินจอง' || c.status === 'ยึดเงินจอง').length;
+  const closed = list.filter(c => !isOpenStatus(c.status) && c.status !== SOLD_STATUS).length;
   const wrap = document.getElementById('statCards');
   wrap.innerHTML = `
     <div class="stat-card"><div class="num">${total}</div><div class="lbl">เคสทั้งหมด</div></div>
