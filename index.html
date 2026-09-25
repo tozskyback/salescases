@@ -152,6 +152,21 @@
   .stat-card.success .num { color: var(--success); }
   .stat-card .lbl { font-size: 12.5px; color: var(--ink-faint); margin-top: 2px; }
 
+  /* month navigator */
+  .month-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .month-label { font-family: var(--font-code); font-weight: 600; font-size: 15px; min-width: 140px; text-align: center; }
+  .month-bar-spacer { flex: 1; }
+  .icon-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .icon-btn:disabled:hover { background: var(--surface); }
+
+  /* monthly summary modal */
+  .summary-total { font-family: var(--font-code); font-size: 22px; font-weight: 700; color: var(--steel); margin-bottom: 18px; }
+  .summary-block { margin-bottom: 18px; }
+  .summary-heading { font-size: 12.5px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 6px; }
+  .summary-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line-soft); font-size: 13.5px; }
+  .summary-row:last-child { border-bottom: none; }
+  .summary-num { font-family: var(--font-code); font-weight: 700; color: var(--ink); }
+
   /* filter bar */
   .filterbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; align-items: center; }
   .search-box { position: relative; flex: 1 1 220px; min-width: 180px; }
@@ -345,6 +360,19 @@
       </div>
 
       <div class="content">
+        <div class="month-bar">
+          <button class="icon-btn" id="monthPrevBtn" title="เดือนก่อนหน้า" onclick="changeMonth(-1)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="month-label" id="monthLabel">—</div>
+          <button class="icon-btn" id="monthNextBtn" title="เดือนถัดไป" onclick="changeMonth(1)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button class="btn btn-ghost btn-sm hidden" id="backToCurrentBtn" onclick="goToCurrentMonth()">กลับเดือนปัจจุบัน</button>
+          <div class="month-bar-spacer"></div>
+          <button class="btn btn-ghost btn-sm" onclick="openMonthSummary()">สรุปเคสเดือนนี้</button>
+        </div>
+
         <div class="stats" id="statCards"></div>
 
         <div class="filterbar">
@@ -562,6 +590,36 @@
   </div>
 </div>
 
+<!-- monthly summary modal -->
+<div class="overlay" id="summaryOverlay" style="justify-content:center; align-items:center;">
+  <div class="drawer" style="width:min(420px,92%); height:auto; max-height:88vh; border-radius:12px;">
+    <div class="drawer-head">
+      <h3 id="summaryTitle">สรุปเคสเดือนนี้</h3>
+      <button class="drawer-close" onclick="closeMonthSummary()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="drawer-body">
+      <div class="summary-total"><span id="summaryTotal">0 เคส</span></div>
+
+      <div class="summary-block">
+        <div class="summary-heading">แยกตามสถานะ</div>
+        <div id="summaryByStatus"></div>
+      </div>
+
+      <div class="summary-block">
+        <div class="summary-heading">แยกตามช่องทาง</div>
+        <div id="summaryByChannel"></div>
+      </div>
+
+      <div class="summary-block" id="summaryBySalesBlock">
+        <div class="summary-heading">แยกตามเซลล์</div>
+        <div id="summaryBySales"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast-wrap" id="toastWrap"></div>
 
 <script>
@@ -609,6 +667,7 @@ let cases = [];
 let cars = [];
 let editingCaseId = null;
 let pendingDeleteAction = null;
+let selectedMonth = currentMonthKey();
 
 function isAdmin() { return session && session.role === 'admin'; }
 
@@ -621,7 +680,7 @@ function rowToCase(r) {
     dateReceived: r.date_received, customerName: r.customer_name, customerContact: r.customer_contact,
     channel: r.channel, brokerCode: r.broker_code, channelOther: r.channel_other,
     salesPerson: r.sales_person, status: r.status, notes: r.notes,
-    lastUpdated: r.last_updated, createdAt: r.created_at,
+    lastUpdated: r.last_updated, createdAt: r.created_at, closedAt: r.closed_at || null,
   };
 }
 function caseToRow(c) {
@@ -630,8 +689,32 @@ function caseToRow(c) {
     date_received: c.dateReceived, customer_name: c.customerName, customer_contact: c.customerContact,
     channel: c.channel, broker_code: c.brokerCode, channel_other: c.channelOther,
     sales_person: c.salesPerson, status: c.status, notes: c.notes,
-    last_updated: c.lastUpdated, created_at: c.createdAt,
+    last_updated: c.lastUpdated, created_at: c.createdAt, closed_at: c.closedAt === undefined ? null : c.closedAt,
   };
+}
+
+/* ---------------- Monthly rollover ---------------- */
+// เคสที่สถานะยังเป็น "ติดตาม"/"ติดจอง" ถือว่ายังเปิดอยู่ — จะถูกนับอยู่ในเดือนปัจจุบันเสมอ (ไม่มี closedAt)
+// พอเคสถูกปิด (เปลี่ยนเป็นสถานะอื่น) ครั้งแรก จะถูก "ตรึง" ไว้ในเดือนที่ปิดนั้นถาวรผ่าน closedAt
+const OPEN_STATUSES = ['ติดตาม', 'ติดจอง'];
+function isOpenStatus(status) { return OPEN_STATUSES.indexOf(status) !== -1; }
+function monthKeyOf(ms) {
+  if (!ms) return null;
+  const d = new Date(ms);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+function currentMonthKey() { return monthKeyOf(Date.now()); }
+function caseMonthKeyOf(c) { return c.closedAt ? monthKeyOf(c.closedAt) : currentMonthKey(); }
+function monthKeyLabel(key) {
+  const [y, m] = key.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+}
+function shiftMonthKey(key, delta) {
+  let [y, m] = key.split('-').map(Number);
+  m += delta;
+  while (m < 1) { m += 12; y--; }
+  while (m > 12) { m -= 12; y++; }
+  return y + '-' + String(m).padStart(2, '0');
 }
 
 /* ---------------- Utilities ---------------- */
@@ -776,6 +859,7 @@ async function reloadCases() {
     const { data, error } = await sb.from('cases').select('*').order('created_at', { ascending: true });
     if (error) throw error;
     cases = data.map(rowToCase);
+    renderMonthBar();
     renderStats();
     renderTable();
   } catch (e) { showToast('โหลดข้อมูลเคสไม่สำเร็จ: ' + e.message, true); }
@@ -848,14 +932,83 @@ function switchTab(tab) {
 function currentList() {
   return isAdmin() ? cases : cases.filter(c => c.salesPerson === session.username);
 }
+function monthList() {
+  return currentList().filter(c => caseMonthKeyOf(c) === selectedMonth);
+}
 function salesDisplayName(username) {
   const u = appUsers.find(x => x.username === username);
   return u ? u.displayName : (username || '—');
 }
 
+/* ---------------- Month navigator ---------------- */
+function renderMonthBar() {
+  const label = document.getElementById('monthLabel');
+  if (!label) return;
+  label.textContent = monthKeyLabel(selectedMonth);
+  const isCurrent = selectedMonth === currentMonthKey();
+  document.getElementById('monthNextBtn').disabled = isCurrent;
+  document.getElementById('backToCurrentBtn').classList.toggle('hidden', isCurrent);
+  document.getElementById('caseSub').textContent = isCurrent
+    ? 'เคสที่ยังติดตาม/ติดจองอยู่จะรวมอยู่ในเดือนนี้เสมอ จนกว่าจะปิดเคส'
+    : 'กำลังดูข้อมูลย้อนหลัง — แสดงเฉพาะเคสที่ปิด (ขายแล้ว/เลิกติดตาม ฯลฯ) ในเดือนนี้';
+}
+function changeMonth(delta) {
+  const next = shiftMonthKey(selectedMonth, delta);
+  if (next > currentMonthKey()) return; // ห้ามดูล่วงหน้าเกินเดือนปัจจุบัน
+  selectedMonth = next;
+  renderMonthBar();
+  renderStats();
+  renderTable();
+}
+function goToCurrentMonth() {
+  selectedMonth = currentMonthKey();
+  renderMonthBar();
+  renderStats();
+  renderTable();
+}
+
+/* ---------------- Monthly summary ---------------- */
+function openMonthSummary() {
+  const list = monthList();
+  const byStatus = {};
+  STATUSES.forEach(s => byStatus[s.key] = 0);
+  const byChannel = {};
+  const bySales = {};
+  list.forEach(c => {
+    byStatus[c.status] = (byStatus[c.status] || 0) + 1;
+    const ch = c.channel || 'ไม่ระบุ';
+    byChannel[ch] = (byChannel[ch] || 0) + 1;
+    if (isAdmin()) {
+      const s = salesDisplayName(c.salesPerson);
+      bySales[s] = (bySales[s] || 0) + 1;
+    }
+  });
+  const rowsHtml = (obj) => Object.keys(obj).length
+    ? Object.entries(obj).sort((a, b) => b[1] - a[1]).map(([k, v]) => `
+        <div class="summary-row"><span>${escapeHtml(k)}</span><span class="summary-num">${v}</span></div>
+      `).join('')
+    : '<div class="muted" style="padding:6px 0;">ไม่มีข้อมูล</div>';
+
+  document.getElementById('summaryTitle').textContent = 'สรุปเคสเดือน ' + monthKeyLabel(selectedMonth);
+  document.getElementById('summaryTotal').textContent = list.length + ' เคส';
+  document.getElementById('summaryByStatus').innerHTML = rowsHtml(byStatus);
+  document.getElementById('summaryByChannel').innerHTML = rowsHtml(byChannel);
+  const salesBlock = document.getElementById('summaryBySalesBlock');
+  if (isAdmin()) {
+    salesBlock.classList.remove('hidden');
+    document.getElementById('summaryBySales').innerHTML = rowsHtml(bySales);
+  } else {
+    salesBlock.classList.add('hidden');
+  }
+  document.getElementById('summaryOverlay').classList.add('open');
+}
+function closeMonthSummary() {
+  document.getElementById('summaryOverlay').classList.remove('open');
+}
+
 /* ---------------- Stats ---------------- */
 function renderStats() {
-  const list = currentList();
+  const list = monthList();
   const total = list.length;
   const following = list.filter(c => c.status === 'ติดตาม' || c.status === 'ติดจอง').length;
   const sold = list.filter(c => c.status === SOLD_STATUS).length;
@@ -880,7 +1033,7 @@ function statusMeta(key) { return STATUSES.find(s => s.key === key) || { key: ke
 
 function renderTable() {
   if (!session) return;
-  const list = currentList();
+  const list = monthList();
   const search = document.getElementById('searchInput').value.trim().toLowerCase();
   const statusF = document.getElementById('statusFilter').value;
   const channelF = document.getElementById('channelFilter').value;
@@ -1219,6 +1372,10 @@ async function saveCase() {
   const prevStatus = existing ? existing.status : null;
   const prevCarCode = existing ? existing.carCode : null;
 
+  // เคสที่เปิดอยู่ (ติดตาม/ติดจอง) ไม่มีวันที่ปิด — จะถือว่าอยู่เดือนปัจจุบันเสมอ
+  // เคสที่ปิดแล้ว จะจำวันที่ปิดครั้งแรกไว้ ไม่ขยับเดือนตามการแก้ไขภายหลัง
+  const closedAt = isOpenStatus(newStatus) ? null : ((existing && existing.closedAt) ? existing.closedAt : Date.now());
+
   const payload = {
     caseCode, carCode, carModel,
     dateReceived: document.getElementById('f_dateReceived').value || '',
@@ -1230,6 +1387,7 @@ async function saveCase() {
     notes: document.getElementById('f_notes').value.trim(),
     lastUpdated: Date.now(),
     createdAt: existing ? existing.createdAt : Date.now(),
+    closedAt,
   };
 
   const saveBtn = document.getElementById('saveCaseBtn');
@@ -1243,9 +1401,17 @@ async function saveCase() {
       if (error) throw error;
     }
 
+    let closedSiblings = 0;
     try {
       if (newStatus === SOLD_STATUS) {
         await sb.from('cars').update({ sold: true, sold_case_id: editingCaseId || null }).eq('code', carCode);
+        // รหัสรถคันนี้ขายแล้ว — เคสอื่นทั้งหมดของรถคันเดียวกันที่ยังไม่ปิด ให้เปลี่ยนเป็น "เลิกติดตาม" อัตโนมัติ
+        const siblings = cases.filter(c => c.carCode === carCode && c.id !== editingCaseId && c.status !== SOLD_STATUS && c.status !== 'เลิกติดตาม');
+        if (siblings.length) {
+          const ids = siblings.map(c => c.id);
+          const { error: sibErr } = await sb.from('cases').update({ status: 'เลิกติดตาม', closed_at: Date.now() }).in('id', ids);
+          if (!sibErr) closedSiblings = siblings.length;
+        }
       } else if (prevStatus === SOLD_STATUS && prevCarCode) {
         const prevCar = cars.find(c => c.code === prevCarCode);
         if (prevCar && (!prevCar.soldCaseId || prevCar.soldCaseId === editingCaseId)) {
@@ -1254,7 +1420,10 @@ async function saveCase() {
       }
     } catch (e) { /* non-fatal */ }
 
-    showToast(editingCaseId ? 'บันทึกการแก้ไขแล้ว' : 'เพิ่มเคสใหม่แล้ว: ' + payload.caseCode);
+    showToast(
+      (editingCaseId ? 'บันทึกการแก้ไขแล้ว' : 'เพิ่มเคสใหม่แล้ว: ' + payload.caseCode) +
+      (closedSiblings ? ` — ปิดเคสอื่นของรถคันนี้อีก ${closedSiblings} เคสอัตโนมัติ` : '')
+    );
     closeCaseDrawer();
     reloadCases();
     reloadCars();
