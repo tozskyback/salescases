@@ -354,6 +354,7 @@
     <nav class="sidebar-nav">
       <button class="nav-item active" data-tab="cases" onclick="switchTab('cases')"><span class="dot"></span>เคสลูกค้า</button>
       <button class="nav-item" data-tab="cars" onclick="switchTab('cars')"><span class="dot"></span>จัดการรหัสรถ</button>
+      <button class="nav-item" data-tab="brokers" onclick="switchTab('brokers')"><span class="dot"></span>จัดการรหัสนายหน้า</button>
       <button class="nav-item hidden" id="usersNavItem" data-tab="users" onclick="switchTab('users')"><span class="dot"></span>จัดการผู้ใช้งาน</button>
     </nav>
     <div class="who-pill">
@@ -471,6 +472,41 @@
         </div>
         <div class="car-filter-bar" id="carFilterBar"></div>
         <div class="car-list" id="carList"></div>
+      </div>
+    </div>
+
+    <!-- BROKERS TAB -->
+    <div id="tab-brokers" class="hidden">
+      <div class="topbar">
+        <div class="topbar-row">
+          <div>
+            <h2>จัดการรหัสนายหน้า</h2>
+            <p class="sub">บันทึกรหัสนายหน้า พร้อมดูว่านายหน้าคนไหนเคยปิดการขายให้ร้านแล้วบ้าง</p>
+          </div>
+        </div>
+      </div>
+      <div class="content" style="max-width:640px;">
+        <div class="car-add-form">
+          <div class="field">
+            <label>รหัสนายหน้า (เช่น NC001)</label>
+            <input type="text" id="newBrokerCode" placeholder="NC001">
+          </div>
+          <div class="field">
+            <label>ชื่อเล่นนายหน้า</label>
+            <input type="text" id="newBrokerNickname" placeholder="เช่น บอย">
+          </div>
+          <div class="field">
+            <label>ชื่อจริงนายหน้า</label>
+            <input type="text" id="newBrokerFullName" placeholder="ชื่อ-นามสกุลจริง">
+          </div>
+          <div class="field">
+            <label>เบอร์โทรนายหน้า</label>
+            <input type="text" id="newBrokerPhone" placeholder="08x-xxx-xxxx">
+          </div>
+          <button class="btn btn-primary" onclick="addBrokerFromTab()">+ เพิ่มนายหน้า</button>
+        </div>
+        <div class="car-filter-bar" id="brokerFilterBar"></div>
+        <div class="car-list" id="brokerList"></div>
       </div>
     </div>
 
@@ -713,6 +749,7 @@ let session = null;     // {username, role, displayName}
 let appUsers = [];
 let cases = [];
 let cars = [];
+let brokers = [];
 let editingCaseId = null;
 let pendingDeleteAction = null;
 let selectedMonth = currentMonthKey();
@@ -723,6 +760,7 @@ function isAdmin() { return session && session.role === 'admin'; }
 /* ---------------- Row <-> App object mapping ---------------- */
 function rowToUser(r) { return { username: r.username, displayName: r.display_name, role: r.role, passwordHash: r.password_hash, createdAt: r.created_at }; }
 function rowToCar(r) { return { id: r.code, code: r.code, model: r.model, sold: !!r.sold, soldCaseId: r.sold_case_id }; }
+function rowToBroker(r) { return { id: r.code, code: r.code, nickname: r.nickname, fullName: r.full_name, phone: r.phone }; }
 function rowToCase(r) {
   return {
     id: r.id, caseCode: r.case_code, carCode: r.car_code, carModel: r.car_model,
@@ -892,8 +930,9 @@ function enterApp() {
   setConn('ok', 'เชื่อมต่อแล้ว');
   subscribeCases();
   subscribeCars();
+  subscribeBrokers();
   if (isAdmin()) subscribeUsers();
-  setInterval(() => { reloadCases(); reloadCars(); if (isAdmin()) reloadUsers(); }, POLL_MS);
+  setInterval(() => { reloadCases(); reloadCars(); reloadBrokers(); if (isAdmin()) reloadUsers(); }, POLL_MS);
 }
 
 function setConn(state, label) {
@@ -912,16 +951,25 @@ async function reloadCases() {
     renderStats();
     renderTable();
     renderCarList();
+    renderBrokerList();
   } catch (e) { showToast('โหลดข้อมูลเคสไม่สำเร็จ: ' + e.message, true); }
 }
 async function reloadCars() {
   try {
     const { data, error } = await sb.from('cars').select('*').order('code', { ascending: true });
     if (error) throw error;
-    cars = data.map(rowToCar);
+    cars = data.map(rowToCar).sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: 'base' }));
     renderCarList();
     populateCarSelect();
   } catch (e) { showToast('โหลดข้อมูลรหัสรถไม่สำเร็จ: ' + e.message, true); }
+}
+async function reloadBrokers() {
+  try {
+    const { data, error } = await sb.from('brokers').select('*').order('code', { ascending: true });
+    if (error) throw error;
+    brokers = data.map(rowToBroker).sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: 'base' }));
+    renderBrokerList();
+  } catch (e) { showToast('โหลดข้อมูลนายหน้าไม่สำเร็จ: ' + e.message, true); }
 }
 async function reloadUsers() {
   try {
@@ -941,6 +989,10 @@ function subscribeCases() {
 function subscribeCars() {
   reloadCars();
   sb.channel('cars-rt').on('postgres_changes', { event: '*', schema: 'public', table: 'cars' }, () => reloadCars()).subscribe();
+}
+function subscribeBrokers() {
+  reloadBrokers();
+  sb.channel('brokers-rt').on('postgres_changes', { event: '*', schema: 'public', table: 'brokers' }, () => reloadBrokers()).subscribe();
 }
 function subscribeUsers() {
   reloadUsers();
@@ -975,6 +1027,7 @@ function switchTab(tab) {
   document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.getElementById('tab-cases').classList.toggle('hidden', tab !== 'cases');
   document.getElementById('tab-cars').classList.toggle('hidden', tab !== 'cars');
+  document.getElementById('tab-brokers').classList.toggle('hidden', tab !== 'brokers');
   document.getElementById('tab-users').classList.toggle('hidden', tab !== 'users');
 }
 
@@ -1396,6 +1449,102 @@ function askDeleteCar(code) {
       if (error) throw error;
       showToast('ลบรหัสรถแล้ว');
       reloadCars();
+    } catch (e) { showToast('ลบไม่สำเร็จ: ' + e.message, true); }
+  });
+}
+
+/* ---------------- Brokers tab ---------------- */
+let brokerFilter = 'all'; // 'all' | 'closed' | 'pending'
+function brokerSoldCount(code) {
+  const target = (code || '').trim().toUpperCase();
+  if (!target) return 0;
+  return cases.filter(c => c.status === SOLD_STATUS && (c.brokerCode || '').trim().toUpperCase() === target).length;
+}
+function renderBrokerList() {
+  const filterBar = document.getElementById('brokerFilterBar');
+  const wrap = document.getElementById('brokerList');
+  if (!filterBar || !wrap) return;
+
+  const counts = { all: brokers.length, closed: 0, pending: 0 };
+  brokers.forEach(b => { brokerSoldCount(b.code) > 0 ? counts.closed++ : counts.pending++; });
+  const chips = [
+    ['all', 'ทั้งหมด'],
+    ['closed', 'เคยดีลขายได้แล้ว'],
+    ['pending', 'ยังไม่เคยจบงาน'],
+  ];
+  filterBar.innerHTML = chips.map(([key, label]) => `
+    <button class="car-filter-chip ${brokerFilter === key ? 'active' : ''}" onclick="setBrokerFilter('${key}')">${label} (${counts[key]})</button>
+  `).join('');
+
+  if (brokers.length === 0) {
+    wrap.innerHTML = '<div class="muted" style="padding:12px 2px;">ยังไม่มีรหัสนายหน้าในระบบ เพิ่มรายการแรกด้านบนได้เลย</div>';
+    return;
+  }
+
+  const filtered = brokers.filter(b => {
+    const sold = brokerSoldCount(b.code);
+    if (brokerFilter === 'closed') return sold > 0;
+    if (brokerFilter === 'pending') return sold === 0;
+    return true;
+  });
+  if (filtered.length === 0) {
+    wrap.innerHTML = '<div class="muted" style="padding:12px 2px;">ไม่มีนายหน้าในหมวดนี้</div>';
+    return;
+  }
+
+  wrap.innerHTML = filtered.map(b => {
+    const sold = brokerSoldCount(b.code);
+    const tag = sold > 0
+      ? `<span class="car-tag" style="color:#157F3C; background:#E4F5E9;">ขายได้แล้ว ${sold} คัน</span>`
+      : `<span class="car-tag" style="color:#6B7280; background:var(--line-soft);">ยังไม่เคยจบงาน</span>`;
+    const contact = [b.fullName, b.phone].filter(Boolean).join(' · ');
+    return `
+    <div class="car-row">
+      <div>
+        <span class="code-badge">${escapeHtml(b.code)}</span>
+        <span style="margin-left:10px; font-size:13.5px; font-weight:600;">${escapeHtml(b.nickname || '—')}</span>
+        ${tag}
+        ${contact ? `<div class="muted" style="margin-top:3px;">${escapeHtml(contact)}</div>` : ''}
+      </div>
+      <button class="icon-btn danger" title="ลบ" onclick="askDeleteBroker('${b.id}')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m2 0v14a1 1 0 01-1 1H7a1 1 0 01-1-1V6h12z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  `;
+  }).join('');
+}
+function setBrokerFilter(key) {
+  brokerFilter = key;
+  renderBrokerList();
+}
+async function addBrokerFromTab() {
+  const codeEl = document.getElementById('newBrokerCode');
+  const nickEl = document.getElementById('newBrokerNickname');
+  const fullEl = document.getElementById('newBrokerFullName');
+  const phoneEl = document.getElementById('newBrokerPhone');
+  const code = codeEl.value.trim().toUpperCase();
+  const nickname = nickEl.value.trim();
+  const fullName = fullEl.value.trim();
+  const phone = phoneEl.value.trim();
+  if (!code || !nickname) { showToast('กรุณากรอกรหัสนายหน้าและชื่อเล่นให้ครบ', true); return; }
+  try {
+    const { error } = await sb.from('brokers').upsert(
+      { code, nickname, full_name: fullName, phone, created_at: Date.now() },
+      { onConflict: 'code' }
+    );
+    if (error) throw error;
+    codeEl.value = ''; nickEl.value = ''; fullEl.value = ''; phoneEl.value = '';
+    showToast('เพิ่มรหัสนายหน้า ' + code + ' แล้ว');
+    reloadBrokers();
+  } catch (e) { showToast('บันทึกไม่สำเร็จ: ' + e.message, true); }
+}
+function askDeleteBroker(code) {
+  openConfirm('ลบรหัสนายหน้านี้?', 'เคสเดิมที่เคยอ้างอิงรหัสนี้จะยังแสดงข้อมูลเดิมอยู่ แต่จะไม่สามารถเลือกรหัสนี้ใหม่ได้อีก', async () => {
+    try {
+      const { error } = await sb.from('brokers').delete().eq('code', code);
+      if (error) throw error;
+      showToast('ลบรหัสนายหน้าแล้ว');
+      reloadBrokers();
     } catch (e) { showToast('ลบไม่สำเร็จ: ' + e.message, true); }
   });
 }
