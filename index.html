@@ -1439,9 +1439,12 @@ function renderCarList() {
         <span style="margin-left:10px; font-size:13.5px;">${escapeHtml(c.model)}</span>
         ${tag}
       </div>
-      <button class="icon-btn danger" title="ลบ" onclick="askDeleteCar('${c.id}')">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m2 0v14a1 1 0 01-1 1H7a1 1 0 01-1-1V6h12z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <button class="btn btn-ghost btn-sm" onclick="toggleCarSold('${c.code}')">${c.sold ? 'ยกเลิกขายแล้ว' : 'ทำเครื่องหมายขายแล้ว'}</button>
+        <button class="icon-btn danger" title="ลบ" onclick="askDeleteCar('${c.id}')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m2 0v14a1 1 0 01-1 1H7a1 1 0 01-1-1V6h12z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
     </div>
   `;
   }).join('');
@@ -1449,6 +1452,17 @@ function renderCarList() {
 function setCarFilter(key) {
   carFilter = key;
   renderCarList();
+}
+async function toggleCarSold(code) {
+  const car = cars.find(c => c.code === code);
+  if (!car) return;
+  const newSold = !car.sold;
+  try {
+    const { error } = await sb.from('cars').update({ sold: newSold, sold_case_id: null }).eq('code', code);
+    if (error) throw error;
+    showToast(newSold ? 'ทำเครื่องหมาย ' + code + ' เป็นขายแล้ว' : 'ยกเลิกสถานะขายแล้วของ ' + code);
+    reloadCars();
+  } catch (e) { showToast('อัปเดตไม่สำเร็จ: ' + e.message, true); }
 }
 
 async function addCarFromTab() {
