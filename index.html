@@ -958,7 +958,7 @@ async function reloadCars() {
   try {
     const { data, error } = await sb.from('cars').select('*').order('code', { ascending: true });
     if (error) throw error;
-    cars = data.map(rowToCar);
+    cars = data.map(rowToCar).sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: 'base' }));
     renderCarList();
     populateCarSelect();
   } catch (e) { showToast('โหลดข้อมูลรหัสรถไม่สำเร็จ: ' + e.message, true); }
@@ -967,7 +967,7 @@ async function reloadBrokers() {
   try {
     const { data, error } = await sb.from('brokers').select('*').order('code', { ascending: true });
     if (error) throw error;
-    brokers = data.map(rowToBroker);
+    brokers = data.map(rowToBroker).sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: 'base' }));
     renderBrokerList();
   } catch (e) { showToast('โหลดข้อมูลนายหน้าไม่สำเร็จ: ' + e.message, true); }
 }
